@@ -38,7 +38,7 @@ Copy `.dev.vars.example` to `.dev.vars` for local secrets. Regenerate types afte
 
 ## Secrets
 
-Non-secret config lives in `wrangler.jsonc` (`SPOTIFY_API_URL`, `X_API_URL`, `MUSIC_ENDPOINT`). Everything else is a secret. Upload all at once:
+Non-secret config lives in `wrangler.jsonc` (`SPOTIFY_API_URL`, `X_API_URL`). Everything else is a secret. Upload all at once:
 
 ```bash
 # secrets.json — throwaway file, delete right after. NEVER COMMIT!!!

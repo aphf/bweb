@@ -16,7 +16,7 @@ import {
 	handleWeather,
 	handleX,
 } from "./routes/misc";
-import { handleMusic } from "./routes/music";
+import { handleMusic, revalidatePlayback } from "./routes/music";
 import { handleNoteByFilename, handleNotesList } from "./routes/notes";
 import {
 	handleAssets,
@@ -152,40 +152,6 @@ async function route(
 	return env.ASSETS.fetch(request);
 }
 
-const RETRY_DELAYS_MS = [1_000, 3_000] as const;
-
-function sleep(delayMs: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, delayMs));
-}
-
-async function refreshMusicEndpoint(endpoint: string): Promise<void> {
-	for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
-		try {
-			const response = await fetch(endpoint, {
-				headers: {
-					Accept: "application/json",
-					"User-Agent": "neosphere-spotify-reauth-cron/1.0",
-				},
-			});
-			if (response.ok) {
-				console.log(
-					JSON.stringify({
-						event: "spotify_reauth_cron_complete",
-						cache_status: response.headers.get("X-Cache-Status"),
-					}),
-				);
-				return;
-			}
-			if (response.status < 500 || attempt >= RETRY_DELAYS_MS.length) {
-				throw new Error(`Music endpoint returned ${response.status}`);
-			}
-		} catch (error) {
-			if (attempt >= RETRY_DELAYS_MS.length) throw error;
-		}
-		await sleep(RETRY_DELAYS_MS[attempt]);
-	}
-}
-
 export default {
 	async fetch(
 		request: Request,
@@ -226,7 +192,7 @@ export default {
 			}
 			return;
 		}
-		const endpoint = env.MUSIC_ENDPOINT || "https://bahauddin.org/api/music";
-		await refreshMusicEndpoint(endpoint);
+		await revalidatePlayback(env);
+		console.log(JSON.stringify({ event: "spotify_reauth_cron_complete" }));
 	},
 } satisfies ExportedHandler<Env>;

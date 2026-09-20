@@ -55,7 +55,7 @@ graph TD
 
     | Schedule | Job |
     | :--- | :--- |
-    | `* * * * *` | Poll `/api/music`: refreshes KV playback cache + runs Spotify re-auth  checks |
+    | `* * * * *` | In-process Spotify revalidation: refreshes KV playback cache + runs Spotify re-auth checks |
     | `30 6 * * *` | RDAP domain-expiry check for `MONITORED_DOMAINS` + emails |
 
 ---
@@ -126,7 +126,7 @@ For this to work, your GitHub Repository needs these secrets (Settings > Secrets
 | `CLOUDFLARE_API_TOKEN` | Allows GitHub to talk to Cloudflare | Cloudflare Dashboard (User Profile > API Tokens) |
 | `CLOUDFLARE_ACCOUNT_ID` | Identifies your account | Cloudflare Dashboard URL |
 
-Non-secret config (`SPOTIFY_API_URL`, `X_API_URL`, `MUSIC_ENDPOINT`) lives in `wrangler.jsonc` `vars`. Everything else is a Worker secret — upload all at once (see README for the file shape):
+Non-secret config (`SPOTIFY_API_URL`, `X_API_URL`) lives in `wrangler.jsonc` `vars`. Everything else is a Worker secret — upload all at once (see README for the file shape):
 
 ```bash
 pnpm exec wrangler secret bulk /path/to/secrets.json
