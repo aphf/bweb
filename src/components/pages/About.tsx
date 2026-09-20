@@ -23,6 +23,7 @@ import { Clock5 } from "@/components/animate-ui/icons/clock-5";
 import { Pickaxe } from "@/components/animate-ui/icons/pickaxe";
 import { Route } from "@/components/animate-ui/icons/route";
 import { useSEO } from "../../hooks/useSEO";
+import { trackEvent } from "../../lib/analytics";
 import { Dock } from "../Dock";
 import { PageHeader } from "../PageHeader";
 import { AboutProfileSidebar } from "./about/AboutProfileSidebar";
@@ -747,7 +748,10 @@ export const About = () => {
 							<AboutProfileSidebar
 								roleDisplayed={roleDisplayed}
 								prefersReducedMotion={prefersReducedMotion}
-								onShowProfile={() => setShowProfile(true)}
+								onShowProfile={() => {
+									trackEvent("profile-view");
+									setShowProfile(true);
+								}}
 							/>
 
 							<div className="lg:col-span-2 flex flex-col pt-2 lg:pt-6 w-full min-w-0">
@@ -769,6 +773,7 @@ export const About = () => {
 													onClick={() => {
 														setActiveCard(card);
 														if (card === "tech") setIsExpanded(false);
+														trackEvent("about-tab-view", { tab: card });
 													}}
 													className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors border outline-none focus-visible:ring-2 focus-visible:ring-elegant-accent ${
 														activeCard === card
@@ -790,9 +795,18 @@ export const About = () => {
 										isExpanded={isExpanded}
 										hasGlowed={hasGlowed}
 										prefersReducedMotion={prefersReducedMotion}
-										onExpand={() => setIsExpanded(true)}
-										onCollapse={() => setIsExpanded(false)}
-										onActivate={() => setActiveCard("about")}
+										onExpand={() => {
+											setIsExpanded(true);
+											trackEvent("about-bio-toggle", { expanded: true });
+										}}
+										onCollapse={() => {
+											setIsExpanded(false);
+											trackEvent("about-bio-toggle", { expanded: false });
+										}}
+										onActivate={() => {
+											setActiveCard("about");
+											trackEvent("about-tab-view", { tab: "about" });
+										}}
 									/>
 									<SkillsCard
 										activeCard={activeCard}
@@ -801,6 +815,7 @@ export const About = () => {
 										onActivate={() => {
 											setActiveCard("tech");
 											setIsExpanded(false);
+											trackEvent("about-tab-view", { tab: "tech" });
 										}}
 									/>
 								</div>

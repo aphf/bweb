@@ -7,6 +7,7 @@ import {
 import { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { useTheme } from "../hooks/useTheme";
+import { trackEvent } from "../lib/analytics";
 import { prefetchAlaska, prefetchFileManager } from "../utils/prefetch";
 import { Dock } from "./Dock";
 import { MusicWidget } from "./music/MusicWidget";
@@ -64,6 +65,7 @@ export const Desktop = ({
 
 	const handleDockNavigate = useCallback(
 		(dest: string) => {
+			trackEvent("dock-click", { dest: dest.toLowerCase().slice(0, 50) });
 			if (dest === "Terminal") {
 				onOpenTerminal();
 			} else if (dest === "Files") {
@@ -120,6 +122,7 @@ export const Desktop = ({
 								type="button"
 								onClick={(e) => {
 									e.stopPropagation();
+									trackEvent("desktop-icon-click", { icon: "file-manager" });
 									onOpenFileManager();
 								}}
 								onMouseEnter={prefetchFileManager}
@@ -147,6 +150,7 @@ export const Desktop = ({
 								type="button"
 								onClick={(e) => {
 									e.stopPropagation();
+									trackEvent("desktop-icon-click", { icon: "alaska" });
 									onOpenAlaska();
 								}}
 								onMouseEnter={prefetchAlaska}

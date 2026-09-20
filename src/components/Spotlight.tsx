@@ -22,6 +22,7 @@ import {
 } from "react";
 import { useNavigate } from "react-router";
 import { useTheme } from "../hooks/useTheme";
+import { trackEvent } from "../lib/analytics";
 
 const DolphinIcon = () => (
 	<img
@@ -136,6 +137,7 @@ export const Spotlight = ({
 
 	const handleSelect = useCallback(
 		(dest: string) => {
+			trackEvent("spotlight-select", { dest: dest.toLowerCase().slice(0, 50) });
 			closeSpotlight();
 			requestAnimationFrame(() => {
 				if (dest === "Toggle Theme") {

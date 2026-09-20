@@ -1,4 +1,5 @@
 import { Grid, List, Minus, Square, X } from "lucide-react";
+import { trackEvent } from "../../lib/analytics";
 
 interface FileManagerHeaderProps {
 	currentPath: string[];
@@ -40,7 +41,10 @@ export const FileManagerHeader = ({
 				<div className="flex items-center gap-0.5 mr-2 bg-elegant-bg rounded border border-elegant-border p-0.5">
 					<button
 						type="button"
-						onClick={() => setViewMode("grid")}
+						onClick={() => {
+							setViewMode("grid");
+							trackEvent("filemanager-view-toggle", { view: "grid" });
+						}}
 						aria-label="Grid View"
 						className={`group relative p-1 rounded transition-colors cursor-pointer flex items-center justify-center ${
 							viewMode === "grid"
@@ -58,7 +62,10 @@ export const FileManagerHeader = ({
 					</button>
 					<button
 						type="button"
-						onClick={() => setViewMode("list")}
+						onClick={() => {
+							setViewMode("list");
+							trackEvent("filemanager-view-toggle", { view: "list" });
+						}}
 						aria-label="List View"
 						className={`group relative p-1 rounded transition-colors cursor-pointer flex items-center justify-center ${
 							viewMode === "list"

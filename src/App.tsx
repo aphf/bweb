@@ -1,5 +1,12 @@
 import { LazyMotion } from "motion/react";
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import {
+	lazy,
+	Suspense,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import {
 	createBrowserRouter,
 	Outlet,
@@ -13,6 +20,7 @@ import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { TopBar } from "./components/TopBar";
 import { useFileSystem } from "./hooks/terminal/useFileSystem";
 import { applyTheme, getInitialTheme } from "./hooks/useTheme";
+import { trackEvent } from "./lib/analytics";
 import { prefetchEverything } from "./utils/prefetch";
 
 const loadMotionFeatures = () =>
@@ -132,6 +140,32 @@ function RootLayout() {
 	const { fileSystem, setFileSystem } = useFileSystem();
 	const location = useLocation();
 	const navigate = useNavigate();
+
+	// Umami: window open tracking (single choke point, covers Dock/Desktop/Spotlight/terminal commands)
+	// Only fires on hidden/closed -> visible transition, not on windowed <-> maximized.
+	const prevTerminalHidden = useRef(true);
+	const prevFmHidden = useRef(true);
+	const prevAlaskaClosed = useRef(true);
+	const prevSpotlightClosed = useRef(true);
+	useEffect(() => {
+		const isVisible = terminalMode !== "hidden";
+		if (isVisible && prevTerminalHidden.current) trackEvent("open-terminal");
+		prevTerminalHidden.current = !isVisible;
+	}, [terminalMode]);
+	useEffect(() => {
+		const isVisible = fileManagerMode !== "hidden";
+		if (isVisible && prevFmHidden.current) trackEvent("open-filemanager");
+		prevFmHidden.current = !isVisible;
+	}, [fileManagerMode]);
+	useEffect(() => {
+		if (isAlaskaOpen && prevAlaskaClosed.current) trackEvent("open-alaska");
+		prevAlaskaClosed.current = !isAlaskaOpen;
+	}, [isAlaskaOpen]);
+	useEffect(() => {
+		if (isSpotlightOpen && prevSpotlightClosed.current)
+			trackEvent("open-spotlight");
+		prevSpotlightClosed.current = !isSpotlightOpen;
+	}, [isSpotlightOpen]);
 
 	const bringToFront = useCallback(
 		(windowName: "terminal" | "filemanager" | "alaska") => {
@@ -314,10 +348,12 @@ function RootLayout() {
 			}
 			if (e.key === "ArrowRight") {
 				const nextIndex = (currentIndex + 1) % PAGE_ROUTES.length;
+				trackEvent("page-navigate", { via: "keyboard", dir: "next" });
 				navigate(PAGE_ROUTES[nextIndex]);
 			} else if (e.key === "ArrowLeft") {
 				const prevIndex =
 					(currentIndex - 1 + PAGE_ROUTES.length) % PAGE_ROUTES.length;
+				trackEvent("page-navigate", { via: "keyboard", dir: "prev" });
 				navigate(PAGE_ROUTES[prevIndex]);
 			}
 		};

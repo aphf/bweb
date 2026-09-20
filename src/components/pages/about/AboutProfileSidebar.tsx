@@ -4,6 +4,7 @@ import { FaLinkedin } from "react-icons/fa";
 import { SiGithub, SiTelegram, SiX } from "react-icons/si";
 import { useNavigate } from "react-router";
 import { useServerStatus } from "../../../hooks/useServerStatus";
+import { trackEvent } from "../../../lib/analytics";
 
 interface AboutProfileSidebarProps {
 	roleDisplayed: string;
@@ -124,6 +125,12 @@ export function AboutProfileSidebar({
 							target="_blank"
 							rel="noopener noreferrer"
 							aria-label="Github Profile"
+							onClick={() =>
+								trackEvent("social-click", {
+									network: "github",
+									location: "about-sidebar",
+								})
+							}
 							className="p-2 bg-elegant-bg hover:bg-elegant-card rounded outline-none focus-visible:ring-1 focus-visible:ring-elegant-accent transition-colors border border-elegant-border text-elegant-text-muted hover:text-elegant-text-primary"
 						>
 							<SiGithub size={18} aria-hidden="true" />
@@ -133,6 +140,12 @@ export function AboutProfileSidebar({
 							target="_blank"
 							rel="noopener noreferrer"
 							aria-label="X (Twitter) Profile"
+							onClick={() =>
+								trackEvent("social-click", {
+									network: "x",
+									location: "about-sidebar",
+								})
+							}
 							className="p-2 bg-elegant-bg hover:bg-elegant-card rounded outline-none focus-visible:ring-1 focus-visible:ring-elegant-accent transition-colors border border-elegant-border text-elegant-text-muted hover:text-elegant-text-primary"
 						>
 							<SiX size={18} aria-hidden="true" />
@@ -142,6 +155,12 @@ export function AboutProfileSidebar({
 							target="_blank"
 							rel="noopener noreferrer"
 							aria-label="LinkedIn Profile"
+							onClick={() =>
+								trackEvent("social-click", {
+									network: "linkedin",
+									location: "about-sidebar",
+								})
+							}
 							className="p-2 bg-elegant-bg hover:bg-elegant-card rounded outline-none focus-visible:ring-1 focus-visible:ring-elegant-accent transition-colors border border-elegant-border text-elegant-text-muted hover:text-elegant-text-primary"
 						>
 							<FaLinkedin size={18} aria-hidden="true" />
@@ -151,6 +170,12 @@ export function AboutProfileSidebar({
 							target="_blank"
 							rel="noopener noreferrer"
 							aria-label="Telegram Profile"
+							onClick={() =>
+								trackEvent("social-click", {
+									network: "telegram",
+									location: "about-sidebar",
+								})
+							}
 							className="p-2 bg-elegant-bg hover:bg-elegant-card rounded outline-none focus-visible:ring-1 focus-visible:ring-elegant-accent transition-colors border border-elegant-border text-elegant-text-muted hover:text-elegant-text-primary"
 						>
 							<SiTelegram size={18} aria-hidden="true" />
@@ -281,7 +306,10 @@ export function AboutProfileSidebar({
 
 					<button
 						type="button"
-						onClick={() => navigate("/contact")}
+						onClick={() => {
+							trackEvent("cta-get-in-touch", { location: "about-sidebar" });
+							navigate("/contact");
+						}}
 						className="mt-5 w-full py-2 border border-elegant-accent/40 text-elegant-accent hover:bg-elegant-accent/10 rounded text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-elegant-accent transition-colors"
 					>
 						Get in touch →
