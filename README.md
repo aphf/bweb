@@ -1,5 +1,7 @@
 # Neosphere
 
+[![CI](https://img.shields.io/github/actions/workflow/status/aphf/bweb/ci.yml?branch=master&label=CI&logo=github&logoColor=white&labelColor=%235A5A5A&color=%232EBC4F)](https://github.com/aphf/bweb/actions/workflows/ci.yml) [![Deploy to Cloudflare Workers](https://img.shields.io/github/actions/workflow/status/aphf/bweb/deploy.yml?branch=master&label=deploy&logo=cloudflare&labelColor=%235A5A5A&color=%232EBC4F)](https://github.com/aphf/bweb/actions/workflows/deploy.yml) [![Status](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fstatus.bahauddin.org%2Fapi%2Fstatus%2Fcurrent.json&query=%24.status.description&label=status&labelColor=%235A5A5A&color=%232EBC4F)](https://status.bahauddin.org)
+
 Interactive web-desktop portfolio (React + Vite SPA) on Cloudflare Worker with D1, KV, and R2.
 
 ## Features
