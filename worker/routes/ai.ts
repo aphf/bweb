@@ -183,6 +183,12 @@ GUIDELINES:
 
 		if (!openrouterRes.ok || !openrouterRes.body) {
 			const errText = await openrouterRes.text().catch(() => "");
+			console.error({
+				message: "alaska_openrouter_error",
+				model: modelName,
+				status: openrouterRes.status,
+				error: errText.slice(0, 500),
+			});
 			return json(
 				{ error: `OpenRouter API error: ${errText}` },
 				openrouterRes.status || 500,
@@ -241,6 +247,15 @@ GUIDELINES:
 						upstreamError,
 						finishReason,
 						sawReasoning: reasoningText.length > 0,
+					});
+					console.error({
+						message: "alaska_empty_stream",
+						model: modelName,
+						finishReason,
+						upstreamError: upstreamError.slice(0, 500),
+						sawReasoning: reasoningText.length > 0,
+						promptTokens,
+						completionTokens,
 					});
 					accumulatedResponse = fallback;
 					controller.enqueue(textEncoder.encode(chunkToSse(fallback)));
