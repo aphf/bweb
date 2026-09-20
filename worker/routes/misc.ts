@@ -77,6 +77,29 @@ export async function handleStatus(
 	}
 }
 
+export async function handleHealth(
+	request: Request,
+	env: Env,
+): Promise<Response> {
+	if (request.method !== "GET") {
+		return json({ error: "Method not allowed. Use: GET" }, 405, {
+			Allow: "GET",
+		});
+	}
+
+	const checks = {
+		kv: Boolean(env.RATE_LIMITER),
+		r2: Boolean(env.neosphere_assets),
+		d1: Boolean(env.DB),
+		assets: Boolean(env.ASSETS),
+	};
+	const ok = checks.kv && checks.r2 && checks.d1 && checks.assets;
+
+	return json({ ok, timestamp: Date.now(), checks }, ok ? 200 : 503, {
+		"Cache-Control": "no-store",
+	});
+}
+
 export async function handlePing(request: Request): Promise<Response> {
 	const url = new URL(request.url);
 	const host = url.searchParams.get("host");

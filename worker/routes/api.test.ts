@@ -102,6 +102,16 @@ describe("API routing and validation", () => {
 		expect(status).toBe(200);
 		expect(body).toEqual([]);
 	});
+
+	it("serves liveness on /api/health", async () => {
+		const { status, body, headers } = await call("/api/health");
+		expect(status).toBe(200);
+		expect(body).toMatchObject({
+			ok: true,
+			checks: { kv: true, r2: true, d1: true, assets: true },
+		});
+		expect(headers.get("cache-control")).toContain("no-store");
+	});
 });
 
 describe("notes CRUD", () => {

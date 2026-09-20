@@ -11,6 +11,7 @@ import {
 import { handleContactSubmit, handleInbox } from "./routes/contact";
 import { handleGalleryApi } from "./routes/gallery";
 import {
+	handleHealth,
 	handlePing,
 	handleStatus,
 	handleWeather,
@@ -93,6 +94,9 @@ async function route(
 	}
 	if (pathname === "/api/ping") {
 		return handlePing(request);
+	}
+	if (pathname === "/api/health") {
+		return handleHealth(request, env);
 	}
 	if (pathname === "/api/weather") {
 		return handleWeather(request, env);
