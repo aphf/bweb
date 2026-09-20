@@ -2,6 +2,7 @@ import type { Env } from "./env";
 import { checkDomainExpiries } from "./lib/domain";
 import { json, withPoweredBy } from "./lib/json";
 import { handleAi } from "./routes/ai";
+import { handleAnalyticsScript, handleAnalyticsSend } from "./routes/analytics";
 import {
 	handleAdminConfig,
 	handleAuthCheck,
@@ -44,6 +45,14 @@ async function route(
 ): Promise<Response> {
 	const url = new URL(request.url);
 	const pathname = stripTrailingSlash(url.pathname);
+
+	// ---- Analytics proxy (Umami bypass-ad-blockers) ----
+	if (pathname === "/stats.js") {
+		return handleAnalyticsScript(request);
+	}
+	if (pathname === "/api/send" || pathname === "/api/collect") {
+		return handleAnalyticsSend(request);
+	}
 
 	// ---- API ----
 	if (pathname === "/api/contact" && request.method === "POST") {
