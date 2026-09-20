@@ -1,4 +1,9 @@
 import type { Env } from "../env";
+import {
+	chunkToSse,
+	emptyStreamFallback,
+	parseChatChunk,
+} from "../lib/ai-stream";
 import { verifyAuth } from "../lib/auth";
 import { json } from "../lib/json";
 
@@ -141,25 +146,40 @@ GUIDELINES:
 			formattedMessages.push({ role: "user", content: prompt });
 		}
 
-		const openrouterRes = await fetch(
-			"https://openrouter.ai/api/v1/chat/completions",
-			{
+		const basePayload: Record<string, unknown> = {
+			model: modelName,
+			messages: formattedMessages,
+			max_tokens: 800,
+			stream: true,
+			stream_options: { include_usage: true },
+			reasoning: { effort: "low", exclude: true },
+		};
+
+		async function postChatCompletions(
+			payload: Record<string, unknown>,
+		): Promise<Response> {
+			return fetch("https://openrouter.ai/api/v1/chat/completions", {
 				method: "POST",
 				headers: {
 					Authorization: `Bearer ${apiKey}`,
 					"Content-Type": "application/json",
 					"HTTP-Referer": "https://bahauddin.org",
-					"X-Title": "Neosphere OS",
+					"X-Title": "Alaska",
 				},
-				body: JSON.stringify({
-					model: modelName,
-					messages: formattedMessages,
-					max_tokens: 400,
-					stream: true,
-					stream_options: { include_usage: true },
-				}),
-			},
-		);
+				body: JSON.stringify(payload),
+			});
+		}
+
+		let openrouterRes = await postChatCompletions(basePayload);
+
+		if (openrouterRes.status === 400) {
+			const plainPayload = { ...basePayload };
+			delete plainPayload.reasoning;
+			const retryRes = await postChatCompletions(plainPayload);
+			if (retryRes.ok && retryRes.body) {
+				openrouterRes = retryRes;
+			}
+		}
 
 		if (!openrouterRes.ok || !openrouterRes.body) {
 			const errText = await openrouterRes.text().catch(() => "");
@@ -170,6 +190,9 @@ GUIDELINES:
 		}
 
 		let accumulatedResponse = "";
+		let reasoningText = "";
+		let upstreamError = "";
+		let finishReason: string | null = null;
 		let promptTokens = 0;
 		let completionTokens = 0;
 		let directCost = 0;
@@ -192,31 +215,40 @@ GUIDELINES:
 						continue;
 					}
 					if (trimmed.startsWith("data: ")) {
-						const rawData = trimmed.slice(6).trim();
-						try {
-							const parsed = JSON.parse(rawData);
-							const delta = parsed.choices?.[0]?.delta;
-							if (delta?.content) {
-								accumulatedResponse += delta.content;
-								controller.enqueue(
-									textEncoder.encode(
-										`data: ${JSON.stringify({ choices: [{ delta: { content: delta.content } }] })}\n\n`,
-									),
-								);
-							}
-							if (parsed.usage) {
-								promptTokens = parsed.usage.prompt_tokens ?? promptTokens;
-								completionTokens =
-									parsed.usage.completion_tokens ?? completionTokens;
-								directCost = parsed.usage.cost ?? directCost;
-							}
-						} catch {
-							/* ignore SSE parse chunk errors */
+						const parsed = parseChatChunk(trimmed.slice(6));
+						if (!parsed) continue;
+						if (parsed.upstreamError && !upstreamError) {
+							upstreamError = parsed.upstreamError;
 						}
+						if (parsed.content) {
+							accumulatedResponse += parsed.content;
+							controller.enqueue(
+								textEncoder.encode(chunkToSse(parsed.content)),
+							);
+						}
+						if (parsed.reasoning) reasoningText += parsed.reasoning;
+						if (parsed.finishReason) finishReason = parsed.finishReason;
+						if (parsed.promptTokens) promptTokens = parsed.promptTokens;
+						if (parsed.completionTokens)
+							completionTokens = parsed.completionTokens;
+						if (parsed.cost) directCost = parsed.cost;
 					}
 				}
 			},
-			flush() {
+			flush(controller) {
+				if (!accumulatedResponse) {
+					const fallback = emptyStreamFallback({
+						upstreamError,
+						finishReason,
+						sawReasoning: reasoningText.length > 0,
+					});
+					accumulatedResponse = fallback;
+					controller.enqueue(textEncoder.encode(chunkToSse(fallback)));
+				} else if (finishReason === "length") {
+					const note = "\n\n…(answer truncated)";
+					accumulatedResponse += note;
+					controller.enqueue(textEncoder.encode(chunkToSse(note)));
+				}
 				ctx.waitUntil(
 					(async () => {
 						try {
@@ -251,9 +283,9 @@ GUIDELINES:
 			},
 		});
 
-		void openrouterRes.body.pipeThrough(transformStream);
+		const stream = openrouterRes.body.pipeThrough(transformStream);
 
-		return new Response(transformStream.readable, {
+		return new Response(stream, {
 			headers: {
 				"Content-Type": "text/event-stream; charset=utf-8",
 				"Cache-Control": "no-cache",
