@@ -1,5 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { lengthBucket, trackEvent } from "../../lib/analytics";
 import type { ChatMessage } from "./AlaskaChatMessageItem";
 
 export const INITIAL_WELCOME_MSG: ChatMessage = {
@@ -73,6 +74,7 @@ export function useAlaskaChat(isOpen: boolean) {
 	};
 
 	const handleClearChat = () => {
+		trackEvent("alaska-clear");
 		if (isGenerating && abortControllerRef.current) {
 			abortControllerRef.current.abort();
 		}
@@ -85,6 +87,11 @@ export function useAlaskaChat(isOpen: boolean) {
 	const handleSend = async (overridePrompt?: string) => {
 		const promptToSend = (overridePrompt || input).trim();
 		if (!promptToSend || isGenerating) return;
+
+		trackEvent("alaska-message-sent", {
+			length: lengthBucket(promptToSend.length),
+			via: overridePrompt ? "suggested" : "input",
+		});
 
 		setInput("");
 		if (inputRef.current) {

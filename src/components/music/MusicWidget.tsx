@@ -20,6 +20,7 @@ import { AudioLines } from "@/components/animate-ui/icons/audio-lines";
 import { Clock } from "@/components/animate-ui/icons/clock";
 import { Volume2 } from "@/components/animate-ui/icons/volume-2";
 import { useSpotifyPlayer } from "../../hooks/useSpotifyPlayer";
+import { trackEvent } from "../../lib/analytics";
 
 interface WidgetSize {
 	width: number;
@@ -185,6 +186,7 @@ function SpotifyTitle({
 						href={spotifyUrl}
 						target="_blank"
 						rel="noopener noreferrer"
+						onClick={() => trackEvent("spotify-outbound")}
 						className="inline-flex touch-manipulation items-center gap-1.5 rounded-lg bg-[#1DB954] px-3 py-1.5 text-xs font-semibold text-white outline-none transition-transform hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-white/70 active:scale-95"
 					>
 						<SiSpotify aria-hidden="true" className="size-3.5" />
@@ -694,7 +696,11 @@ export const MusicWidget = memo(function MusicWidget() {
 		[track.artist, track.album].filter(Boolean).join(" • ") || "Unknown artist";
 
 	const togglePlayer = useCallback(() => {
-		setIsMinimized((current) => !current);
+		setIsMinimized((current) => {
+			const next = !current;
+			trackEvent("music-toggle", { expanded: next });
+			return next;
+		});
 	}, []);
 
 	useEffect(() => {

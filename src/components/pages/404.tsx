@@ -1,6 +1,8 @@
 import { IconHouse2Fill18 } from "nucleo-ui-essential-fill-18";
+import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useSEO } from "../../hooks/useSEO";
+import { trackEvent } from "../../lib/analytics";
 import { Dock } from "../Dock";
 import { PageHeader } from "../PageHeader";
 
@@ -14,6 +16,10 @@ export const NotFound = () => {
 			"The requested memory sector or route does not exist in Neosphere OS. Explore available pages or return to the desktop.",
 		url: "https://bahauddin.org/404",
 	});
+
+	useEffect(() => {
+		trackEvent("404-view", { path: location.pathname.slice(0, 100) });
+	}, [location.pathname]);
 
 	const onExit = () => navigate("/");
 

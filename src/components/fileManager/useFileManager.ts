@@ -1,6 +1,7 @@
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TerminalMode } from "../../App";
+import { extBucket, trackEvent } from "../../lib/analytics";
 import type { FileSystem, FileSystemNode } from "../../utils/fileSystem";
 import {
 	isPathInPublic,
@@ -243,6 +244,10 @@ export function useFileManager(
 		node: FileSystemNode;
 		isDirectory: boolean;
 	}) => {
+		trackEvent("filemanager-open-item", {
+			type: item.isDirectory ? "directory" : "file",
+			ext: item.isDirectory ? "dir" : extBucket(item.name),
+		});
 		if (item.isDirectory) {
 			navigateTo([...currentPath, item.name]);
 		} else {

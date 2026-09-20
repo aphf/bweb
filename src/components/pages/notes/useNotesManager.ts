@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { identifyAdmin, trackEvent } from "../../../lib/analytics";
 import { checkAdmin } from "../../../utils/authApi";
 import type { Note } from "../../../utils/notesApi";
 import {
@@ -53,6 +54,7 @@ export function useNotesManager() {
 	};
 
 	const handleNoteClick = useCallback(async (note: Note) => {
+		trackEvent("notes-open");
 		setSelectedNote(note);
 		setContentLoading(true);
 		setNoteContent(null);
@@ -89,7 +91,10 @@ export function useNotesManager() {
 			});
 
 		checkAdmin()
-			.then(setIsAdmin)
+			.then((v) => {
+				setIsAdmin(v);
+				if (v) identifyAdmin();
+			})
 			.catch(() => setIsAdmin(false));
 
 		const params = new URLSearchParams(window.location.search);
@@ -109,6 +114,7 @@ export function useNotesManager() {
 	}, [handleNoteClick]);
 
 	const handleCreate = () => {
+		trackEvent("notes-create-click");
 		setEditFilename(undefined);
 		setEditContent("");
 		setIsEditing(true);
@@ -151,6 +157,7 @@ export function useNotesManager() {
 
 	const handleShare = () => {
 		if (!selectedNote) return;
+		trackEvent("notes-share");
 		const url = `${window.location.origin}/shared/notes/${encodeURIComponent(selectedNote.filename)}`;
 		navigator.clipboard.writeText(url);
 		showAlert("Share link copied to clipboard!", "success");

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { trackEvent } from "../../lib/analytics";
 import type { Album, Photo } from "./types";
 
 const PHOTO_EXT = /\.(jpg|jpeg|png|webp|gif)$/i;
@@ -50,6 +51,7 @@ export function useGalleryNavigation(albums: Album[]) {
 
 	const openAlbum = useCallback(
 		(album: Album) => {
+			trackEvent("gallery-album-open");
 			setActiveAlbumTitle(album.title);
 			setActivePhotoKey(null);
 			window.history.pushState(
@@ -69,6 +71,7 @@ export function useGalleryNavigation(albums: Album[]) {
 
 	const openPhoto = useCallback(
 		(photo: Photo, replace = false) => {
+			trackEvent("gallery-photo-open");
 			setActivePhotoKey(photo.key);
 			const url = buildPhotoUrl(photo);
 			if (replace) {

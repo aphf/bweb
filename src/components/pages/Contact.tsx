@@ -8,6 +8,7 @@ import type React from "react";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useSEO } from "../../hooks/useSEO";
+import { trackEvent } from "../../lib/analytics";
 import { Dock } from "../Dock";
 import { PageHeader } from "../PageHeader";
 
@@ -65,10 +66,12 @@ export const Contact = () => {
 			}
 
 			setStatus("success");
+			trackEvent("contact-submit", { status: "success" });
 			setFormData({ name: "", email: "", message: "" });
 			setTimeout(() => setStatus("idle"), 3000);
 		} catch {
 			setStatus("error");
+			trackEvent("contact-submit", { status: "error" });
 			setTimeout(() => setStatus("idle"), 3000);
 		} finally {
 			submittingRef.current = false;
@@ -86,6 +89,13 @@ export const Contact = () => {
 	const isMessageValid = messageWordCount >= 3;
 
 	const isFormValid = isNameValid && isEmailValid && isMessageValid;
+
+	const startedRef = useRef(false);
+	const trackStart = () => {
+		if (startedRef.current) return;
+		startedRef.current = true;
+		trackEvent("contact-start");
+	};
 
 	return (
 		<div className="h-full w-full bg-elegant-bg text-elegant-text-secondary font-mono overflow-hidden">
@@ -119,6 +129,8 @@ export const Contact = () => {
 
 								<form
 									onSubmit={handleSubmit}
+									onFocus={trackStart}
+									onChange={trackStart}
 									className="space-y-4"
 									aria-label="Contact form"
 								>

@@ -1,7 +1,8 @@
 import { ChevronLeft, ChevronRight, ChevronUp, Search } from "lucide-react";
 import { IconFolderOpenFill18 } from "nucleo-ui-essential-fill-18";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { trackEvent } from "../../lib/analytics";
 
 interface FileManagerToolbarProps {
 	currentPath: string[];
@@ -30,6 +31,20 @@ export const FileManagerToolbar = ({
 }: FileManagerToolbarProps) => {
 	const [isEditingPath, setIsEditingPath] = useState(false);
 	const [pathInputText, setPathInputText] = useState("");
+
+	// Debounced search tracking (no raw query text)
+	const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	useEffect(() => {
+		if (searchQuery.trim().length < 2) return;
+		if (searchTimer.current) clearTimeout(searchTimer.current);
+		searchTimer.current = setTimeout(
+			() => trackEvent("filemanager-search"),
+			1500,
+		);
+		return () => {
+			if (searchTimer.current) clearTimeout(searchTimer.current);
+		};
+	}, [searchQuery]);
 
 	const handleCustomPathSubmit = () => {
 		setIsEditingPath(false);

@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useNavigate } from "react-router";
 import { useSEO } from "../../hooks/useSEO";
+import { identifyAdmin, trackEvent } from "../../lib/analytics";
 import { checkAdmin } from "../../utils/authApi";
 import { optimizeImage } from "../../utils/imageOptimizer";
 import { Dock } from "../Dock";
@@ -134,7 +135,10 @@ const useGalleryAdminActions = ({
 	);
 
 	useEffect(() => {
-		checkAdmin().then(setIsAdmin);
+		checkAdmin().then((v) => {
+			setIsAdmin(v);
+			if (v) identifyAdmin();
+		});
 	}, []);
 
 	const showConfirm = (
@@ -901,6 +905,7 @@ export const Gallery = () => {
 		(e?: React.MouseEvent) => {
 			e?.stopPropagation();
 			if (!activeAlbum || !activePhoto) return;
+			trackEvent("gallery-photo-nav", { dir: "next" });
 			const currentIndex = activeAlbum.photos.findIndex(
 				(p) => p.key === activePhoto.key,
 			);
@@ -915,6 +920,7 @@ export const Gallery = () => {
 		(e?: React.MouseEvent) => {
 			e?.stopPropagation();
 			if (!activeAlbum || !activePhoto) return;
+			trackEvent("gallery-photo-nav", { dir: "prev" });
 			const currentIndex = activeAlbum.photos.findIndex(
 				(p) => p.key === activePhoto.key,
 			);

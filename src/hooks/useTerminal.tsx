@@ -6,6 +6,7 @@ import {
 	useState,
 } from "react";
 import { useNavigate } from "react-router";
+import { trackEvent } from "../lib/analytics";
 import { commands } from "../utils/commands";
 import { resolvePath, resolvePathArray } from "../utils/fileSystemUtils";
 import {
@@ -60,6 +61,9 @@ export const useTerminal = (options?: UseTerminalOptions) => {
 
 			if (!isInitialLoad) {
 				setInputHistory((prev) => [...prev, trimmed]);
+				const cmdBucket =
+					trimmed.split(" ")[0]?.toLowerCase().slice(0, 30) || "unknown";
+				trackEvent("terminal-command", { command: cmdBucket });
 			}
 
 			const [cmdName, ...args] = trimmed.split(" ");

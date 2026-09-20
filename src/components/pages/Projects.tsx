@@ -2,6 +2,7 @@ import { IconFolderOpenFill18 } from "nucleo-ui-essential-fill-18";
 import { SiGithub } from "react-icons/si";
 import { useNavigate } from "react-router";
 import { useSEO } from "../../hooks/useSEO";
+import { trackEvent } from "../../lib/analytics";
 import { Dock } from "../Dock";
 import { PageHeader } from "../PageHeader";
 
@@ -84,6 +85,11 @@ export const Projects = () => {
 												target="_blank"
 												rel="noopener noreferrer"
 												aria-label={`View ${project.title} on GitHub`}
+												onClick={() =>
+													trackEvent("project-click", {
+														title: project.title.slice(0, 50),
+													})
+												}
 												className="text-elegant-text-muted hover:text-elegant-text-primary rounded outline-none focus-visible:ring-1 focus-visible:ring-elegant-accent p-1 transition-colors"
 											>
 												<SiGithub size={18} aria-hidden="true" />

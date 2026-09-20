@@ -1,4 +1,5 @@
 import { Plus, Search } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import { Dock } from "../Dock";
 import { PageHeader } from "../PageHeader";
@@ -6,6 +7,7 @@ import "katex/dist/katex.min.css";
 import "highlight.js/styles/github-dark.min.css";
 
 import { useSEO } from "../../hooks/useSEO";
+import { trackEvent } from "../../lib/analytics";
 import { Nano } from "../Nano";
 import { ActionModals } from "../shared/ActionModals";
 import { NoteDetailModal } from "./notes/NoteDetailModal";
@@ -69,6 +71,18 @@ export function Notes() {
 			? `https://bahauddin.org/notes?note=${encodeURIComponent(selectedNote.filename)}`
 			: "https://bahauddin.org/notes",
 	});
+
+	// Debounced notes-search (no raw query text, avoids noisy per-keystroke events)
+	const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	useEffect(() => {
+		const q = searchTerm.trim();
+		if (q.length < 2) return;
+		if (searchTimer.current) clearTimeout(searchTimer.current);
+		searchTimer.current = setTimeout(() => trackEvent("notes-search"), 1200);
+		return () => {
+			if (searchTimer.current) clearTimeout(searchTimer.current);
+		};
+	}, [searchTerm]);
 
 	if (isEditing) {
 		return (
