@@ -32,9 +32,6 @@ X_API_URL=https://x-profile-api.<your-subdomain>.workers.dev
 SPOTIFY_API_URL=https://s.bahauddin.in/v1/me/player/currently-playing
 SPOTIFY_API_KEY=your_spotify_api_key_here
 
-# Optional: override for local dev (defaults to https://bahauddin.org/api/music)
-# MUSIC_ENDPOINT=http://localhost:8787/api/music
-
 # Domain expiry alerts -- checked via RDAP once per day on cron
 MONITORED_DOMAINS=bahauddin.org,bahauddin.in
 # Optional: renewal link shown as button. If unset, no button renders. Registrar name is still shown from live RDAP data.

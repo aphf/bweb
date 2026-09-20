@@ -28,8 +28,7 @@
 	},
 	"vars": {
 		"SPOTIFY_API_URL": "https://s.bahauddin.in/v1/me/player/currently-playing",
-		"X_API_URL": "https://x-profile-api.himanshu-ranjan.workers.dev",
-		"MUSIC_ENDPOINT": "https://bahauddin.org/api/music"
+		"X_API_URL": "https://x-profile-api.himanshu-ranjan.workers.dev"
 	},
 	"r2_buckets": [
 		{

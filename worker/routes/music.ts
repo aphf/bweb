@@ -234,7 +234,7 @@ async function fetchUpstream(env: SpotifyEnv): Promise<UpstreamResult | null> {
 	}
 }
 
-async function revalidatePlayback(env: Env): Promise<void> {
+export async function revalidatePlayback(env: Env): Promise<void> {
 	if (env.RATE_LIMITER) {
 		try {
 			const existing = await env.RATE_LIMITER.get(REVALIDATE_LOCK_KEY);
