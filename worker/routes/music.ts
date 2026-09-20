@@ -125,12 +125,11 @@ async function readPlaybackCache(
 			fresh: Date.now() - cached.cached_at < CACHE_TTL_MS,
 		};
 	} catch (error) {
-		console.warn(
-			JSON.stringify({
-				event: "spotify_playback_cache_read_failed",
-				error: error instanceof Error ? error.message : String(error),
-			}),
-		);
+		console.warn({
+			message: "spotify_playback_cache_read_failed",
+			event: "spotify_playback_cache_read_failed",
+			error: error instanceof Error ? error.message : String(error),
+		});
 		return null;
 	}
 }
@@ -147,24 +146,22 @@ async function storePlayback(
 			expirationTtl: 60,
 		});
 	} catch (error) {
-		console.error(
-			JSON.stringify({
-				event: "spotify_playback_cache_write_failed",
-				error: error instanceof Error ? error.message : String(error),
-			}),
-		);
+		console.error({
+			message: "spotify_playback_cache_write_failed",
+			event: "spotify_playback_cache_write_failed",
+			error: error instanceof Error ? error.message : String(error),
+		});
 	}
 	try {
 		await env.RATE_LIMITER.put(LAST_PLAYED_KEY, payload, {
 			expirationTtl: LAST_PLAYED_TTL_SECONDS,
 		});
 	} catch (error) {
-		console.error(
-			JSON.stringify({
-				event: "spotify_last_played_write_failed",
-				error: error instanceof Error ? error.message : String(error),
-			}),
-		);
+		console.error({
+			message: "spotify_last_played_write_failed",
+			event: "spotify_last_played_write_failed",
+			error: error instanceof Error ? error.message : String(error),
+		});
 	}
 }
 
@@ -174,12 +171,11 @@ async function processNotice(env: SpotifyEnv, payload: unknown): Promise<void> {
 	try {
 		await processReauthorizationAlert(env, notice);
 	} catch (error) {
-		console.error(
-			JSON.stringify({
-				event: "spotify_reauth_processing_failed",
-				error: error instanceof Error ? error.message : String(error),
-			}),
-		);
+		console.error({
+			message: "spotify_reauth_processing_failed",
+			event: "spotify_reauth_processing_failed",
+			error: error instanceof Error ? error.message : String(error),
+		});
 	}
 }
 
@@ -211,20 +207,18 @@ async function fetchUpstream(env: SpotifyEnv): Promise<UpstreamResult | null> {
 		} catch {
 			// Some upstream error responses intentionally have no JSON body.
 		}
-		console.warn(
-			JSON.stringify({
-				event: "spotify_upstream_non_success",
-				status: response.status,
-			}),
-		);
+		console.warn({
+			message: "spotify_upstream_non_success",
+			event: "spotify_upstream_non_success",
+			status: response.status,
+		});
 		return { outcome: "error-status", status: response.status, payload };
 	} catch (error) {
-		console.error(
-			JSON.stringify({
-				event: "spotify_upstream_fetch_failed",
-				error: error instanceof Error ? error.message : String(error),
-			}),
-		);
+		console.error({
+			message: "spotify_upstream_fetch_failed",
+			event: "spotify_upstream_fetch_failed",
+			error: error instanceof Error ? error.message : String(error),
+		});
 		return {
 			outcome: "exception",
 			error: error instanceof Error ? error.message : String(error),
@@ -239,19 +233,21 @@ export async function revalidatePlayback(env: Env): Promise<void> {
 		try {
 			const existing = await env.RATE_LIMITER.get(REVALIDATE_LOCK_KEY);
 			if (existing) {
-				console.log(JSON.stringify({ event: "spotify_revalidation_deduped" }));
+				console.log({
+					message: "spotify_revalidation_deduped",
+					event: "spotify_revalidation_deduped",
+				});
 				return;
 			}
 			await env.RATE_LIMITER.put(REVALIDATE_LOCK_KEY, String(Date.now()), {
 				expirationTtl: REVALIDATE_LOCK_TTL_SECONDS,
 			});
 		} catch (error) {
-			console.warn(
-				JSON.stringify({
-					event: "spotify_revalidate_lock_failed",
-					error: error instanceof Error ? error.message : String(error),
-				}),
-			);
+			console.warn({
+				message: "spotify_revalidate_lock_failed",
+				event: "spotify_revalidate_lock_failed",
+				error: error instanceof Error ? error.message : String(error),
+			});
 		}
 	}
 
@@ -264,12 +260,11 @@ export async function revalidatePlayback(env: Env): Promise<void> {
 				const publicData = toPublicPlaybackResponse(result.payload);
 				if (publicData.is_playing) await storePlayback(env, publicData);
 			} catch (error) {
-				console.error(
-					JSON.stringify({
-						event: "spotify_revalidation_failed",
-						error: error instanceof Error ? error.message : String(error),
-					}),
-				);
+				console.error({
+					message: "spotify_revalidation_failed",
+					event: "spotify_revalidation_failed",
+					error: error instanceof Error ? error.message : String(error),
+				});
 			}
 		} else if (
 			result.outcome === "error-status" &&
@@ -279,12 +274,11 @@ export async function revalidatePlayback(env: Env): Promise<void> {
 			await processNotice(env, result.payload);
 		}
 	} catch (error) {
-		console.error(
-			JSON.stringify({
-				event: "spotify_revalidation_failed",
-				error: error instanceof Error ? error.message : String(error),
-			}),
-		);
+		console.error({
+			message: "spotify_revalidation_failed",
+			event: "spotify_revalidation_failed",
+			error: error instanceof Error ? error.message : String(error),
+		});
 	} finally {
 		if (env.RATE_LIMITER) {
 			await env.RATE_LIMITER.delete(REVALIDATE_LOCK_KEY).catch(() => {});

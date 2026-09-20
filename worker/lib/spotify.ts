@@ -231,12 +231,11 @@ async function sendReauthorizationEmail(
 	const to = env.CONTACT_EMAIL_TO;
 	const from = env.CONTACT_EMAIL_FROM;
 	if (!apiKey || !to || !from) {
-		console.warn(
-			JSON.stringify({
-				event: "spotify_reauth_email_disabled",
-				reason: "missing_email_configuration",
-			}),
-		);
+		console.warn({
+			message: "spotify_reauth_email_disabled",
+			event: "spotify_reauth_email_disabled",
+			reason: "missing_email_configuration",
+		});
 		return null;
 	}
 
@@ -283,15 +282,14 @@ async function sendReauthorizationEmail(
 		if (!error) return data.id;
 
 		const canRetry = shouldRetryResend(error);
-		console.error(
-			JSON.stringify({
-				event: "spotify_reauth_email_attempt_failed",
-				attempt: attempt + 1,
-				code: error.name,
-				status: error.statusCode,
-				retrying: canRetry && attempt < RETRY_DELAYS_MS.length,
-			}),
-		);
+		console.error({
+			message: "spotify_reauth_email_attempt_failed",
+			event: "spotify_reauth_email_attempt_failed",
+			attempt: attempt + 1,
+			code: error.name,
+			status: error.statusCode,
+			retrying: canRetry && attempt < RETRY_DELAYS_MS.length,
+		});
 		if (!canRetry || attempt >= RETRY_DELAYS_MS.length) {
 			throw new Error(
 				`Resend rejected Spotify reauthorization email: ${error.name}`,
@@ -319,12 +317,11 @@ export async function processReauthorizationAlert(
 	if (milestone === null) return;
 	const kv = env.RATE_LIMITER;
 	if (!kv) {
-		console.warn(
-			JSON.stringify({
-				event: "spotify_reauth_notification_disabled",
-				reason: "missing_kv_binding",
-			}),
-		);
+		console.warn({
+			message: "spotify_reauth_notification_disabled",
+			event: "spotify_reauth_notification_disabled",
+			reason: "missing_kv_binding",
+		});
 		return;
 	}
 
@@ -352,12 +349,11 @@ export async function processReauthorizationAlert(
 			next_retry_at: now + PENDING_RETRY_DELAY_MS,
 		});
 	} catch (error) {
-		console.error(
-			JSON.stringify({
-				event: "spotify_reauth_state_pending_write_failed",
-				error: error instanceof Error ? error.message : String(error),
-			}),
-		);
+		console.error({
+			message: "spotify_reauth_state_pending_write_failed",
+			event: "spotify_reauth_state_pending_write_failed",
+			error: error instanceof Error ? error.message : String(error),
+		});
 	}
 
 	try {
@@ -370,13 +366,12 @@ export async function processReauthorizationAlert(
 			updated_at: new Date().toISOString(),
 			resend_id: resendId,
 		});
-		console.log(
-			JSON.stringify({
-				event: "spotify_reauth_email_sent",
-				milestone,
-				resend_id: resendId,
-			}),
-		);
+		console.log({
+			message: "spotify_reauth_email_sent",
+			event: "spotify_reauth_email_sent",
+			milestone,
+			resend_id: resendId,
+		});
 	} catch (error) {
 		try {
 			await persistState(kv, {
@@ -387,15 +382,12 @@ export async function processReauthorizationAlert(
 				next_retry_at: Date.now() + FAILED_RETRY_DELAY_MS,
 			});
 		} catch (stateError) {
-			console.error(
-				JSON.stringify({
-					event: "spotify_reauth_state_failure_write_failed",
-					error:
-						stateError instanceof Error
-							? stateError.message
-							: String(stateError),
-				}),
-			);
+			console.error({
+				message: "spotify_reauth_state_failure_write_failed",
+				event: "spotify_reauth_state_failure_write_failed",
+				error:
+					stateError instanceof Error ? stateError.message : String(stateError),
+			});
 		}
 		throw error;
 	}

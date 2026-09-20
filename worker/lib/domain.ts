@@ -113,24 +113,22 @@ export async function fetchDomainExpiry(
 			},
 		);
 		if (!response.ok) {
-			console.warn(
-				JSON.stringify({
-					event: "domain_rdap_non_success",
-					domain,
-					status: response.status,
-				}),
-			);
+			console.warn({
+				message: "domain_rdap_non_success",
+				event: "domain_rdap_non_success",
+				domain,
+				status: response.status,
+			});
 			return null;
 		}
 		const payload: unknown = await response.json();
 		const expiresAt = findExpirationEvent(payload);
 		if (!expiresAt) {
-			console.warn(
-				JSON.stringify({
-					event: "domain_rdap_no_expiration",
-					domain,
-				}),
-			);
+			console.warn({
+				message: "domain_rdap_no_expiration",
+				event: "domain_rdap_no_expiration",
+				domain,
+			});
 			return null;
 		}
 		const expiresMs = new Date(expiresAt).getTime();
@@ -143,13 +141,12 @@ export async function fetchDomainExpiry(
 			registrar: findRegistrar(payload),
 		};
 	} catch (error) {
-		console.error(
-			JSON.stringify({
-				event: "domain_rdap_fetch_failed",
-				domain,
-				error: error instanceof Error ? error.message : String(error),
-			}),
-		);
+		console.error({
+			message: "domain_rdap_fetch_failed",
+			event: "domain_rdap_fetch_failed",
+			domain,
+			error: error instanceof Error ? error.message : String(error),
+		});
 		return null;
 	} finally {
 		clearTimeout(timeoutId);
@@ -188,12 +185,11 @@ async function sendDomainExpiryEmail(
 	const to = env.CONTACT_EMAIL_TO;
 	const from = env.CONTACT_EMAIL_FROM;
 	if (!apiKey || !to || !from) {
-		console.warn(
-			JSON.stringify({
-				event: "domain_expiry_email_disabled",
-				reason: "missing_email_configuration",
-			}),
-		);
+		console.warn({
+			message: "domain_expiry_email_disabled",
+			event: "domain_expiry_email_disabled",
+			reason: "missing_email_configuration",
+		});
 		return null;
 	}
 
@@ -236,17 +232,16 @@ async function sendDomainExpiryEmail(
 		if (!error) return data.id;
 
 		const canRetry = shouldRetryResend(error);
-		console.error(
-			JSON.stringify({
-				event: "domain_expiry_email_attempt_failed",
-				domain: info.domain,
-				milestone,
-				attempt: attempt + 1,
-				code: error.name,
-				status: error.statusCode,
-				retrying: canRetry && attempt < RETRY_DELAYS_MS.length,
-			}),
-		);
+		console.error({
+			message: "domain_expiry_email_attempt_failed",
+			event: "domain_expiry_email_attempt_failed",
+			domain: info.domain,
+			milestone,
+			attempt: attempt + 1,
+			code: error.name,
+			status: error.statusCode,
+			retrying: canRetry && attempt < RETRY_DELAYS_MS.length,
+		});
 		if (!canRetry || attempt >= RETRY_DELAYS_MS.length) {
 			throw new Error(`Resend rejected domain expiry email: ${error.name}`);
 		}
@@ -322,12 +317,11 @@ export async function processDomainExpiry(
 	if (milestone === null) return;
 	const kv = env.RATE_LIMITER;
 	if (!kv) {
-		console.warn(
-			JSON.stringify({
-				event: "domain_expiry_notification_disabled",
-				reason: "missing_kv_binding",
-			}),
-		);
+		console.warn({
+			message: "domain_expiry_notification_disabled",
+			event: "domain_expiry_notification_disabled",
+			reason: "missing_kv_binding",
+		});
 		return;
 	}
 
@@ -356,13 +350,12 @@ export async function processDomainExpiry(
 			next_retry_at: now + PENDING_RETRY_DELAY_MS,
 		});
 	} catch (error) {
-		console.error(
-			JSON.stringify({
-				event: "domain_expiry_state_pending_write_failed",
-				domain: info.domain,
-				error: error instanceof Error ? error.message : String(error),
-			}),
-		);
+		console.error({
+			message: "domain_expiry_state_pending_write_failed",
+			event: "domain_expiry_state_pending_write_failed",
+			domain: info.domain,
+			error: error instanceof Error ? error.message : String(error),
+		});
 	}
 
 	try {
@@ -375,14 +368,13 @@ export async function processDomainExpiry(
 			updated_at: new Date().toISOString(),
 			resend_id: resendId,
 		});
-		console.log(
-			JSON.stringify({
-				event: "domain_expiry_email_sent",
-				domain: info.domain,
-				milestone,
-				resend_id: resendId,
-			}),
-		);
+		console.log({
+			message: "domain_expiry_email_sent",
+			event: "domain_expiry_email_sent",
+			domain: info.domain,
+			milestone,
+			resend_id: resendId,
+		});
 	} catch (error) {
 		try {
 			await persistState(kv, info.domain, {
@@ -393,16 +385,13 @@ export async function processDomainExpiry(
 				next_retry_at: Date.now() + FAILED_RETRY_DELAY_MS,
 			});
 		} catch (stateError) {
-			console.error(
-				JSON.stringify({
-					event: "domain_expiry_state_failure_write_failed",
-					domain: info.domain,
-					error:
-						stateError instanceof Error
-							? stateError.message
-							: String(stateError),
-				}),
-			);
+			console.error({
+				message: "domain_expiry_state_failure_write_failed",
+				event: "domain_expiry_state_failure_write_failed",
+				domain: info.domain,
+				error:
+					stateError instanceof Error ? stateError.message : String(stateError),
+			});
 		}
 		throw error;
 	}
@@ -418,13 +407,12 @@ export async function checkDomainExpiries(env: DomainEnv): Promise<void> {
 			if (!info) continue;
 			await processDomainExpiry(env, info);
 		} catch (error) {
-			console.error(
-				JSON.stringify({
-					event: "domain_expiry_processing_failed",
-					domain,
-					error: error instanceof Error ? error.message : String(error),
-				}),
-			);
+			console.error({
+				message: "domain_expiry_processing_failed",
+				event: "domain_expiry_processing_failed",
+				domain,
+				error: error instanceof Error ? error.message : String(error),
+			});
 		}
 	}
 }

@@ -163,13 +163,11 @@ export default {
 			return withPoweredBy(response);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Unknown error";
-			console.error(
-				JSON.stringify({
-					message: "unhandled error",
-					error: message,
-					path: new URL(request.url).pathname,
-				}),
-			);
+			console.error({
+				message: "unhandled error",
+				error: message,
+				path: new URL(request.url).pathname,
+			});
 			return withPoweredBy(json({ error: "Internal server error" }, 500));
 		}
 	},
@@ -183,16 +181,18 @@ export default {
 			try {
 				await checkDomainExpiries(env);
 			} catch (error) {
-				console.error(
-					JSON.stringify({
-						event: "domain_expiry_cron_failed",
-						error: error instanceof Error ? error.message : String(error),
-					}),
-				);
+				console.error({
+					message: "domain_expiry_cron_failed",
+					event: "domain_expiry_cron_failed",
+					error: error instanceof Error ? error.message : String(error),
+				});
 			}
 			return;
 		}
 		await revalidatePlayback(env);
-		console.log(JSON.stringify({ event: "spotify_reauth_cron_complete" }));
+		console.log({
+			message: "spotify_reauth_cron_complete",
+			event: "spotify_reauth_cron_complete",
+		});
 	},
 } satisfies ExportedHandler<Env>;
