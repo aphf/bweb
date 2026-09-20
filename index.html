@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-title" content="Bahauddin Alam" />
+  <link rel="manifest" href="/site.webmanifest" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
+  <title>Bahauddin Alam - Full Stack Developer</title>
+  <meta name="author" content="Bahauddin Alam" />
+  <meta name="robots" content="index, follow" />
+  <meta name="description"
+    content="I'm Bahauddin Alam, a Full Stack Developer specializing in React, JavaScript, TypeScript, Tailwind CSS, and Python. Explore my portfolio and projects." />
+
+
+  <link rel="canonical" href="https://bahauddin.org" />
+  <link rel="describedby" href="/llms.txt" />
+  <link rel="preload" href="/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" as="image" href="/assets/dolphin.svg" type="image/svg+xml" fetchpriority="high" />
+  <link rel="preload" as="image" href="/assets/wallpaper.webp" type="image/webp" fetchpriority="high" />
+
+  <script>
+    (() => {
+      try {
+        const stored = localStorage.getItem("bweb_theme");
+        const isLight =
+          stored === "light" ||
+          (!stored &&
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: light)").matches);
+        if (isLight) {
+          document.documentElement.classList.add("light");
+          document.documentElement.setAttribute("data-theme", "light");
+        } else {
+          document.documentElement.classList.remove("light");
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      } catch {}
+    })();
+  </script>
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://bahauddin.org" />
+  <meta property="og:title" content="Bahauddin Alam - Full Stack Developer" />
+  <meta property="og:site_name" content="Bahauddin Alam" />
+  <meta property="og:description"
+    content="Bahauddin Alam is a Full Stack Developer specializing in React, JavaScript, TypeScript, Tailwind CSS, and Python. Explore his portfolio and projects." />
+  <meta property="og:image" content="https://bahauddin.org/og-image.png" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:creator" content="@bahauddinalam" />
+  <meta name="twitter:url" content="https://bahauddin.org" />
+  <meta name="twitter:title" content="Bahauddin Alam - Full Stack Developer" />
+  <meta name="twitter:description"
+    content="Bahauddin Alam is a Full Stack Developer specializing in React, JavaScript, TypeScript, Tailwind CSS, and Python. Explore his portfolio and projects." />
+  <meta name="twitter:image" content="https://bahauddin.org/og-image.png" />
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://bahauddin.org/#website",
+          "url": "https://bahauddin.org",
+          "name": "Bahauddin Alam",
+          "alternateName": "Bahauddin Alam Portfolio",
+          "publisher": {
+            "@id": "https://bahauddin.org/#person"
+          }
+        },
+        {
+          "@type": "Person",
+          "@id": "https://bahauddin.org/#person",
+          "name": "Bahauddin Alam",
+          "url": "https://bahauddin.org",
+          "image": "https://bahauddin.org/assets/me.jpg",
+          "description": "Bahauddin Alam is a Full Stack Developer specializing in React, JavaScript, TypeScript, Tailwind CSS, and Python.",
+          "jobTitle": "Full Stack Developer",
+          "worksFor": {
+            "@type": "Organization",
+            "name": "Independent"
+          },
+          "sameAs": [
+            "https://x.com/bahauddinalam",
+            "https://www.linkedin.com/in/bahauddinalam",
+            "https://github.com/bahauddin-alam",
+            "https://www.instagram.com/bahauddin_alam"
+          ],
+          "knowsAbout": [
+            "React",
+            "JavaScript",
+            "TypeScript",
+            "Tailwind CSS",
+            "Python"
+          ]
+        }
+      ]
+    }
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

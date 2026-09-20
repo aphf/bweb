@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    name: Typecheck + Lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm + Node.js
+        uses: pnpm/setup@v1
+        with:
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm exec tsc -b
+
+      - name: Lint
+        run: pnpm exec biome check .
+
+  test:
+    runs-on: ubuntu-latest
+    name: Worker Tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm + Node.js
+        uses: pnpm/setup@v1
+        with:
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Vitest (Workers runtime)
+        run: pnpm run test
+
+  audit:
+    runs-on: ubuntu-latest
+    name: Prod Dependency Audit
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm + Node.js
+        uses: pnpm/setup@v1
+        with:
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit production dependencies (high+)
+        run: pnpm audit --prod --audit-level high
+
+  validate:
+    runs-on: ubuntu-latest
+    name: Build + Deploy Dry-Run
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm + Node.js
+        uses: pnpm/setup@v1
+        with:
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Validate Worker config and bundle
+        run: pnpm exec wrangler deploy --dry-run

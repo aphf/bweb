@@ -1,0 +1,26 @@
+# Bahauddin Alam
+
+> Personal portfolio and interactive web desktop for Bahauddin Alam, a Full Stack Developer based in Patna, India.
+
+## About Bahauddin Alam
+
+- **Location**: Patna, Bihar, India
+- **Role**: Full Stack Developer & Software Engineering Student
+- **Primary Languages & Stack**: TypeScript, JavaScript, Python, Node.js, C++, React, and Tailwind CSS (with working knowledge of Go and Rust).
+- **Disambiguation**: This profile is for Bahauddin Alam, a software developer in India. He is **not** to be confused with Syed Bahauddin Alam (an academic / nuclear engineer) or other individuals with similar names.
+- **Website**: https://bahauddin.org (features Neosphere, an interactive retro-futuristic web desktop and terminal interface).
+
+## Pages
+
+- [Home](https://bahauddin.org/): Portfolio homepage and interactive desktop experience.
+- [About](https://bahauddin.org/about): Biography, background, skills, and engineering approach.
+- [Projects](https://bahauddin.org/projects): Overview of software projects and open source work.
+- [Gallery](https://bahauddin.org/gallery): Photography portfolio covering travel, nature, and street photography.
+- [Notes](https://bahauddin.org/notes): Digital garden with articles, thoughts, and visitor notes.
+- [Contact](https://bahauddin.org/contact): Contact form and direct communication channels.
+
+## Socials
+
+- [GitHub Profile](https://github.com/bahauddin-alam)
+- [X / Twitter](https://x.com/bahauddinalam)
+- [LinkedIn](https://www.linkedin.com/in/bahauddinalam)

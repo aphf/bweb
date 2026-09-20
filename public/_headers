@@ -1,0 +1,30 @@
+# Cloudflare Pages Custom Headers
+
+# Global default for all requests
+/*
+  X-Powered-By: Neosphere
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Hashed bundles, JS, CSS, wallpapers, icons in /assets - 1 year immutable cache
+/assets/*
+  X-Powered-By: Neosphere
+  Cache-Control: public, max-age=31536000, immutable
+
+# Static fonts in /fonts - 1 year immutable cache
+/fonts/*
+  X-Powered-By: Neosphere
+  Cache-Control: public, max-age=31536000, immutable
+
+# Static metadata files
+/site.webmanifest
+  X-Powered-By: Neosphere
+  Cache-Control: public, max-age=86400, must-revalidate
+/robots.txt
+  X-Powered-By: Neosphere
+  Cache-Control: public, max-age=86400, must-revalidate
+/sitemap.xml
+  X-Powered-By: Neosphere
+  Cache-Control: public, max-age=86400, must-revalidate
+/llms.txt
+  X-Powered-By: Neosphere
+  Cache-Control: public, max-age=86400, must-revalidate

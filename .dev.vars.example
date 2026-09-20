@@ -1,0 +1,41 @@
+OPENWEATHER_API_KEY=your_api_key_here
+
+# EMAILS
+RESEND_API_KEY=re_your_api_key_here
+# Single email or comma-separated list of multiple recipients (e.g. admin1@domain.com, admin2@domain.com)
+CONTACT_EMAIL_TO=your_email@example.com
+CONTACT_EMAIL_FROM=Bahauddin Alam <onboarding@resend.dev>
+
+# AI
+OPENROUTER_API_KEY=sk-or-v1-your_openrouter_api_key_here
+OPENROUTER_MODEL=deepseek/deepseek-v4-flash-0731
+
+# ADMIN AUTH -- required for /api/auth/login, else login returns 500
+ADMIN_PASSWORD=choose_a_strong_password_here # run and paste the output openssl rand -hex 32
+# Optional: separate JWT signing secret. Falls back to ADMIN_PASSWORD if unset.
+# JWT_SECRET=choose_a_long_random_secret_here # run and paste the output openssl rand -hex 32
+
+# CONTACT FORM TELEGRAM ALERTS -- optional, Telegram skipped if either is unset
+# TELEGRAM_BOT_TOKEN=1234567890:AA-your_bot_token_here # get yours from @botfather in Telegram
+# Single ID or comma-separated list
+# TELEGRAM_CHAT_ID=123456789 # get yours from @userinfobot
+
+# ABOUT UPTIME
+STATUS_API_KEY=bsk_your_status_api_key_here
+STATUS_API_URL=https://t.707101.xyz/api/servers/mintB/status
+
+# X PROFILE WORKER URL
+X_API_URL=https://x-profile-api.<your-subdomain>.workers.dev
+
+# Spotify Currently Playing PROXY URL -- visit https://s.bahauddin.org to get API Key
+
+SPOTIFY_API_URL=https://s.bahauddin.in/v1/me/player/currently-playing
+SPOTIFY_API_KEY=your_spotify_api_key_here
+
+# Optional: override for local dev (defaults to https://bahauddin.org/api/music)
+# MUSIC_ENDPOINT=http://localhost:8787/api/music
+
+# Domain expiry alerts -- checked via RDAP once per day on cron
+MONITORED_DOMAINS=bahauddin.org,bahauddin.in
+# Optional: renewal link shown as button. If unset, no button renders. Registrar name is still shown from live RDAP data.
+# DOMAIN_RENEW_URL=https://your-registrar.example/renew
