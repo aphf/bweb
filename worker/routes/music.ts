@@ -233,7 +233,7 @@ export async function revalidatePlayback(env: Env): Promise<void> {
 		try {
 			const existing = await env.RATE_LIMITER.get(REVALIDATE_LOCK_KEY);
 			if (existing) {
-				console.log({
+				console.info({
 					message: "spotify_revalidation_deduped",
 					event: "spotify_revalidation_deduped",
 				});

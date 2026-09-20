@@ -366,7 +366,7 @@ export async function processReauthorizationAlert(
 			updated_at: new Date().toISOString(),
 			resend_id: resendId,
 		});
-		console.log({
+		console.info({
 			message: "spotify_reauth_email_sent",
 			event: "spotify_reauth_email_sent",
 			milestone,

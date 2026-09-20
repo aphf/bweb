@@ -368,7 +368,7 @@ export async function processDomainExpiry(
 			updated_at: new Date().toISOString(),
 			resend_id: resendId,
 		});
-		console.log({
+		console.info({
 			message: "domain_expiry_email_sent",
 			event: "domain_expiry_email_sent",
 			domain: info.domain,

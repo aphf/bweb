@@ -111,7 +111,7 @@ async function sendResendEmail(
 		? `contact-submission/${metadata.id}`
 		: `contact-submission/${crypto.randomUUID()}`;
 
-	console.log(
+	console.info(
 		`[Resend] Sending email notification to ${recipients.join(", ")} via BCC (idempotency: ${idempotencyKey})`,
 	);
 
@@ -132,7 +132,7 @@ async function sendResendEmail(
 		throw new Error(`Resend error: ${error.name} - ${error.message}`);
 	}
 
-	console.log(`[Resend] Email delivered successfully. ID: ${data?.id}`);
+	console.info(`[Resend] Email delivered successfully. ID: ${data?.id}`);
 }
 
 export async function handleContactSubmit(

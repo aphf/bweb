@@ -190,7 +190,7 @@ export default {
 			return;
 		}
 		await revalidatePlayback(env);
-		console.log({
+		console.info({
 			message: "spotify_reauth_cron_complete",
 			event: "spotify_reauth_cron_complete",
 		});
