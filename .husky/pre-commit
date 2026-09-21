@@ -1,0 +1,43 @@
+# Fail fast on any error (husky already runs hooks with `sh -e`, this covers manual runs)
+set -e
+
+# Block secrets / local env from being committed (even with `git add -f`)
+blocked=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^(\.dev\.vars(\..*)?|\.env(\..*)?|secrets\.json|Share/|Scripts/|\.wrangler/)' || true)
+if [ -n "$blocked" ]; then
+  echo "blocked: refusing to commit secrets/local files:"
+  echo "$blocked"
+  echo "unstage them with: git reset HEAD -- <file>"
+  exit 1
+fi
+
+# Lint + format staged files only (docs-style, no extra deps).
+# Tolerates "no staged checkable files" (e.g. docs-only commit) as a pass,
+# but still fails the commit on real lint/format errors (parity with CI `biome check .`).
+run_biome_staged() {
+  set +e
+  out=$(pnpm exec biome check "$@" --staged 2>&1)
+  code=$?
+  set -e
+  echo "$out"
+  if [ $code -ne 0 ]; then
+    case "$out" in
+      *"No files were processed"*)
+        echo "(biome: no staged files to check, skipping)"
+        return 0
+        ;;
+      *)
+        return $code
+        ;;
+    esac
+  fi
+}
+
+# --write auto-fixes, then re-stage updated files
+run_biome_staged --write
+git update-index --again
+
+# Re-check: fails commit if lint/format errors remain
+run_biome_staged
+
+# Whitespace errors
+git diff --check
