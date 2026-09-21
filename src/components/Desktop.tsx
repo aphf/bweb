@@ -26,6 +26,7 @@ import {
 	PopoverTitle,
 	PopoverTrigger,
 } from "./ui/popover";
+import { VisitorCounter } from "./VisitorCounter";
 
 interface DesktopProps {
 	onOpenTerminal: () => void;
@@ -170,7 +171,11 @@ export const Desktop = ({
 							</button>
 						</div>
 
-						<MusicWidget />
+						<div className="fixed right-[calc(1rem+env(safe-area-inset-right))] top-[calc(3.5rem+env(safe-area-inset-top))] z-30 flex flex-col items-end gap-2">
+							<MusicWidget />
+
+							<VisitorCounter />
+						</div>
 
 						<div className="flex-1" />
 

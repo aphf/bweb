@@ -14,12 +14,17 @@ graph TD
     
     subgraph "Backend (Serverless)"
         Functions -->|CRUD| D1[(D1 Database)]
-        Functions -->|Assets| R2[(R2 Object Storage)]
-        Functions -->|Rate Limit| KV[(KV Storage)]
-        Functions -->|Notify| Telegram[Telegram Bot API]
-        Functions -->|Email| Resend["Resend API (React Email)"]
-        Functions -->|Weather| OpenWeather[OpenWeatherMap API]
-        Functions -->|Auth| JWT[JWT Validation]
+        Functions -->|Assets| R2[(R2 Storage)]
+        Functions -->|Cache + Rate Limit| KV[(KV)]
+        Functions -->|Notify| Telegram[Telegram]
+        Functions -->|Email| Resend[Resend Email]
+        Functions -->|Weather| OpenWeather[OpenWeather]
+        Functions -->|Now Playing| Spotify[Spotify]
+        Functions -->|Visitors + Collect| Umami[Umami]
+        Functions -->|Profiles| XAPI[X Profiles]
+        Functions -->|Uptime| StatusAPI[Status]
+        Functions -->|Expiry| RDAP["Domain RDAP"]
+        Functions -->|Auth| JWT[JWT]
     end
     
     subgraph "Frontend (Client)"
@@ -109,6 +114,7 @@ The application uses Cloudflare D1 (SQLite) for persistence.
 
 - **Rate limits**: sliding-window counters (`login:<ip>`, `contact:<ip>`, `create_note:<ip>`, …). Approximate under concurrency (no atomic incr) — acceptable for abuse throttles.
 - **Music cache**: `cache:spotify:currently_playing` (60s TTL, 15s fresh window) + `cache:spotify:last_played` (7d TTL) for history fallback.
+- **Visitors cache**: `cache:visitors:v1` (120s TTL, 30s fresh window) + revalidation lock (60s TTL).
 - **Alert state**: Spotify re-auth and domain-expiry milestone machines (`pending/sent/failed` per cycle) + the music revalidation lock (60s TTL).
 
 ### Object Storage (R2)
@@ -153,7 +159,7 @@ One Worker, two cron schedules (dispatched on `controller.cron` in `worker/index
 
 | Schedule | Job |
 | :--- | :--- |
-| `* * * * *` | Poll `/api/music`: refreshes the KV playback cache and runs Spotify re-auth milestone checks (30/20/10/5/1 days, KV-deduped per cycle). |
+| `* * * * *` | Refreshes the KV playback + visitors caches and runs Spotify re-auth milestone checks (30/20/10/5/1 days, KV-deduped per cycle). |
 | `30 6 * * *` | RDAP expiry check for `MONITORED_DOMAINS` with milestone emails (30/20/10/5/2/1 days, KV-deduped per domain + expiry cycle). |
 
 ### Music Playback Pipeline (`worker/routes/music.ts`)
@@ -166,3 +172,7 @@ Pull-based with stale-while-revalidate:
 4. **Idle** → last-played history if present, else bare `{is_playing: false}`.
 
 Upstream load stays at ~1–4 req/min regardless of visitor count. Frontend polls every 30s (visible tabs only) and projects progress client-side, so typical display lag is 15–45s. Alert emails (Spotify + domains) are Resend-idempotent per milestone + cycle, so retries never double-send.
+
+### Visitors Pipeline (`worker/routes/visitors.ts`)
+
+Same SWR shape: HIT (<30s) → instant; STALE → instant + one locked background refresh; MISS → inline Umami `stats` + `active` fetch. Cron-warmed, so upstream stays at ~1 fetch/min. Frontend (`useVisitors` + `VisitorCounter`) polls every 30s (visible tabs only); the pill shows total always, live count only when >0.

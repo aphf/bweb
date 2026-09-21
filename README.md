@@ -7,7 +7,7 @@ Interactive web-desktop portfolio (React + Vite SPA) on Cloudflare Worker with D
 ## Features
 
 - **Neosphere OS:** functional terminal with filesystem, admin commands (`login`, `inbox`, `alerts`), and graphical apps (Gallery, Notes, Contact).
-- **API:** contact inbox, notes guestbook, gallery management, LLM chatbot, Spotify now-playing, X and GitHub profile view in terminal, etc. 
+- **API:** contact inbox, notes guestbook, gallery management, LLM chatbot, Spotify now-playing, visitor counter, X and GitHub profile view in terminal, etc. 
 - **Alerts:** Built in Telegram + email notifications, Spotify re-auth and domain-expiry alert emails.
 - **SEO:** per-route meta injection, R2-backed gallery/media serving.
 
@@ -56,6 +56,7 @@ Non-secret config lives in `wrangler.jsonc` (`SPOTIFY_API_URL`, `X_API_URL`). Ev
   "OPENWEATHER_API_KEY": "...",
   "STATUS_API_KEY": "...",
   "SPOTIFY_API_KEY": "...",
+  "UMAMI_API_TOKEN": "...",
   "MONITORED_DOMAINS": "example.org,example.com"
 }
 ```
