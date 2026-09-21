@@ -143,6 +143,7 @@ pnpm exec wrangler secret list   # verify
 | `OPENROUTER_API_KEY` | AI chat | For `/api/ai` |
 | `STATUS_API_KEY` | Server status proxy | For `/api/status` |
 | `SPOTIFY_API_KEY` | Now-playing proxy auth | For `/api/music` live data |
+| `UMAMI_API_TOKEN` | Visitor counter (hidden without) | For `/api/visitors` |
 | `MONITORED_DOMAINS` | Comma-separated domains for expiry checks | For domain alerts |
 
 Local dev reads `.dev.vars` (see `.dev.vars.example`). Secrets never go in `wrangler.jsonc` — a same-named secret silently shadows the `vars` value.

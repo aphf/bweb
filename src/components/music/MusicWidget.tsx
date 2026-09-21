@@ -758,7 +758,7 @@ export const MusicWidget = memo(function MusicWidget() {
 					: `${isMobile ? "mobile" : "desktop"}-${isExpanded ? "expanded" : "collapsed"}`;
 
 	return (
-		<div className="fixed right-[calc(1rem+env(safe-area-inset-right))] top-[calc(3.5rem+env(safe-area-inset-top))] z-30 select-none font-sans">
+		<div className="select-none font-sans">
 			<m.div
 				ref={widgetRef}
 				initial={false}

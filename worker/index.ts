@@ -30,6 +30,7 @@ import {
 } from "./routes/pages-assets";
 import { handlePublicFs } from "./routes/public-fs";
 import { handleSharedNote } from "./routes/shared-note";
+import { handleVisitors, revalidateVisitors } from "./routes/visitors";
 
 function stripTrailingSlash(pathname: string): string {
 	if (pathname.length > 1 && pathname.endsWith("/")) {
@@ -100,6 +101,9 @@ async function route(
 	}
 	if (pathname === "/api/status") {
 		return handleStatus(request, env);
+	}
+	if (pathname === "/api/visitors") {
+		return handleVisitors(request, env, ctx);
 	}
 	if (pathname === "/api/ping") {
 		return handlePing(request);
@@ -203,6 +207,7 @@ export default {
 			return;
 		}
 		await revalidatePlayback(env);
+		await revalidateVisitors(env);
 		console.info({
 			message: "spotify_reauth_cron_complete",
 			event: "spotify_reauth_cron_complete",

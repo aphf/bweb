@@ -27,6 +27,11 @@ STATUS_API_URL=https://t.707101.xyz/api/servers/mintB/status
 # X PROFILE WORKER URL
 X_API_URL=https://x-profile-api.<your-subdomain>.workers.dev
 
+# VISITOR COUNTER (Umami) -- required for /api/visitors, else it returns { total: null, live: 0 }
+# UMAMI_BASE_URL=https://umami.example.com
+# UMAMI_WEBSITE_ID=49f2e243-7680-41a5-9b4b-cfc703024002
+# UMAMI_API_TOKEN=your_umami_api_token_here # wrangler secret put UMAMI_API_TOKEN
+
 # Spotify Currently Playing PROXY URL -- visit https://s.bahauddin.org to get API Key
 
 SPOTIFY_API_URL=https://s.bahauddin.in/v1/me/player/currently-playing
