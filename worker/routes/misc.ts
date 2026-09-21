@@ -1,9 +1,151 @@
 import type { Env } from "../env";
 import { json } from "../lib/json";
 
+const STATUS_CACHE_KEY = "cache:status:v1";
+const STATUS_FRESH_MS = 30_000;
+const STATUS_UPSTREAM_TIMEOUT_MS = 6_000;
+const STATUS_REVALIDATE_LOCK_KEY = "lock:status:revalidate";
+const STATUS_REVALIDATE_LOCK_TTL_SECONDS = 60;
+
+interface StatusData {
+	success: boolean;
+	server: { is_online: boolean; last_ping: string | null } | null;
+}
+
+function statusResponse(
+	data: StatusData,
+	cacheStatus: "HIT" | "STALE" | "MISS",
+	status = 200,
+): Response {
+	return json(data, status, {
+		"Cache-Control": "public, max-age=15, s-maxage=30",
+		"X-Cache-Status": cacheStatus,
+	});
+}
+
+async function readStatusCache(env: Env): Promise<{
+	data: StatusData;
+	cachedAt: number;
+} | null> {
+	if (!env.RATE_LIMITER) return null;
+	try {
+		const raw = await env.RATE_LIMITER.get(STATUS_CACHE_KEY);
+		if (!raw) return null;
+		const parsed: unknown = JSON.parse(raw);
+		if (typeof parsed !== "object" || parsed === null) return null;
+		const record = parsed as { data?: unknown; cached_at?: unknown };
+		if (typeof record.cached_at !== "number") return null;
+		if (typeof record.data !== "object" || record.data === null) return null;
+		const data = record.data as {
+			success?: unknown;
+			server?: unknown;
+		};
+		if (typeof data.success !== "boolean") return null;
+		let server: StatusData["server"] = null;
+		if (data.server !== null && data.server !== undefined) {
+			if (typeof data.server !== "object" || data.server === null) return null;
+			const s = data.server as {
+				is_online?: unknown;
+				last_ping?: unknown;
+			};
+			if (typeof s.is_online !== "boolean") return null;
+			if (s.last_ping !== null && typeof s.last_ping !== "string") return null;
+			server = { is_online: s.is_online, last_ping: s.last_ping };
+		}
+		return {
+			data: { success: data.success, server },
+			cachedAt: record.cached_at,
+		};
+	} catch {
+		return null;
+	}
+}
+
+async function writeStatusCache(env: Env, data: StatusData): Promise<void> {
+	if (!env.RATE_LIMITER) return;
+	try {
+		await env.RATE_LIMITER.put(
+			STATUS_CACHE_KEY,
+			JSON.stringify({ data, cached_at: Date.now() }),
+			{ expirationTtl: 120 },
+		);
+	} catch {}
+}
+
+async function fetchStatusUpstream(
+	apiUrl: string,
+	apiKey: string,
+): Promise<StatusData | null> {
+	const controller = new AbortController();
+	const timeoutId = setTimeout(
+		() => controller.abort(),
+		STATUS_UPSTREAM_TIMEOUT_MS,
+	);
+	try {
+		const response = await fetch(apiUrl, {
+			method: "GET",
+			headers: { "X-API-Key": apiKey, Accept: "application/json" },
+			signal: controller.signal,
+		});
+		if (!response.ok) return null;
+		const upstream = (await response.json()) as {
+			success?: boolean;
+			server?: { is_online?: boolean; last_ping?: string };
+		};
+		return {
+			success: Boolean(upstream?.success),
+			server: upstream?.server
+				? {
+						is_online: Boolean(upstream.server.is_online),
+						last_ping: upstream.server.last_ping || null,
+					}
+				: null,
+		};
+	} catch {
+		return null;
+	} finally {
+		clearTimeout(timeoutId);
+	}
+}
+
+async function revalidateStatus(
+	env: Env,
+	apiUrl: string,
+	apiKey: string,
+): Promise<void> {
+	if (env.RATE_LIMITER) {
+		try {
+			const existing = await env.RATE_LIMITER.get(STATUS_REVALIDATE_LOCK_KEY);
+			if (existing) return;
+			await env.RATE_LIMITER.put(
+				STATUS_REVALIDATE_LOCK_KEY,
+				String(Date.now()),
+				{ expirationTtl: STATUS_REVALIDATE_LOCK_TTL_SECONDS },
+			);
+		} catch {}
+	}
+	try {
+		const fresh = await fetchStatusUpstream(apiUrl, apiKey);
+		if (fresh) await writeStatusCache(env, fresh);
+	} finally {
+		if (env.RATE_LIMITER) {
+			await env.RATE_LIMITER.delete(STATUS_REVALIDATE_LOCK_KEY).catch(() => {});
+		}
+	}
+}
+
+export async function revalidateStatusCron(env: Env): Promise<void> {
+	const apiKey = env.STATUS_API_KEY;
+	if (!apiKey) return;
+	const apiUrl =
+		env.STATUS_API_URL || "https://t.707101.xyz/api/servers/mintB/status";
+	await revalidateStatus(env, apiUrl, apiKey);
+}
+
 export async function handleStatus(
 	request: Request,
 	env: Env,
+	ctx: ExecutionContext,
 ): Promise<Response> {
 	if (request.method !== "GET") {
 		return json({ error: "Method not allowed. Use: GET" }, 405, {
@@ -27,54 +169,29 @@ export async function handleStatus(
 		);
 	}
 
-	try {
-		const response = await fetch(apiUrl, {
-			method: "GET",
-			headers: { "X-API-Key": apiKey, Accept: "application/json" },
-		});
-
-		if (!response.ok) {
-			return json(
-				{
-					success: false,
-					error: `Upstream status service responded with status ${response.status}`,
-					server: null,
-				},
-				response.status,
-				{ "Cache-Control": "no-store" },
-			);
-		}
-
-		const upstream = (await response.json()) as {
-			success?: boolean;
-			server?: { is_online?: boolean; last_ping?: string };
-		};
-
-		return json(
-			{
-				success: Boolean(upstream?.success),
-				server: upstream?.server
-					? {
-							is_online: Boolean(upstream.server.is_online),
-							last_ping: upstream.server.last_ping || null,
-						}
-					: null,
-			},
-			200,
-			{ "Cache-Control": "public, max-age=15, s-maxage=30" },
-		);
-	} catch (err: unknown) {
-		return json(
-			{
-				success: false,
-				error:
-					err instanceof Error ? err.message : "Failed to fetch server status",
-				server: null,
-			},
-			502,
-			{ "Cache-Control": "no-store" },
-		);
+	const cached = await readStatusCache(env);
+	if (cached && Date.now() - cached.cachedAt < STATUS_FRESH_MS) {
+		return statusResponse(cached.data, "HIT");
 	}
+	if (cached) {
+		ctx.waitUntil(revalidateStatus(env, apiUrl, apiKey));
+		return statusResponse(cached.data, "STALE");
+	}
+
+	const fresh = await fetchStatusUpstream(apiUrl, apiKey);
+	if (fresh) {
+		await writeStatusCache(env, fresh);
+		return statusResponse(fresh, "MISS");
+	}
+	return json(
+		{
+			success: false,
+			error: "Upstream status service unavailable",
+			server: null,
+		},
+		502,
+		{ "Cache-Control": "no-store", "X-Cache-Status": "MISS" },
+	);
 }
 
 export async function handleHealth(

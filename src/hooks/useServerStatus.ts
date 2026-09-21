@@ -9,7 +9,7 @@ export interface ServerStatusInfo {
 	refresh: () => Promise<void>;
 }
 
-const POLL_INTERVAL_MS = 60_000; // 1 minute
+const POLL_INTERVAL_MS = 30_000;
 
 function formatRelativeTime(date: Date): string {
 	const diffMs = Math.max(0, Date.now() - date.getTime());

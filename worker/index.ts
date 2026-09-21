@@ -17,6 +17,7 @@ import {
 	handleStatus,
 	handleWeather,
 	handleX,
+	revalidateStatusCron,
 } from "./routes/misc";
 import { handleMusic, revalidatePlayback } from "./routes/music";
 import { handleNoteByFilename, handleNotesList } from "./routes/notes";
@@ -100,7 +101,7 @@ async function route(
 		return handlePublicFs(request, env);
 	}
 	if (pathname === "/api/status") {
-		return handleStatus(request, env);
+		return handleStatus(request, env, ctx);
 	}
 	if (pathname === "/api/visitors") {
 		return handleVisitors(request, env, ctx);
@@ -208,6 +209,7 @@ export default {
 		}
 		await revalidatePlayback(env);
 		await revalidateVisitors(env);
+		await revalidateStatusCron(env);
 		console.info({
 			message: "spotify_reauth_cron_complete",
 			event: "spotify_reauth_cron_complete",
