@@ -1,8 +1,9 @@
 # Fail fast on any error (husky already runs hooks with `sh -e`, this covers manual runs)
 set -e
 
-# Block secrets / local env from being committed (even with `git add -f`)
-blocked=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^(\.dev\.vars(\..*)?|\.env(\..*)?|secrets\.json|Share/|Scripts/|\.wrangler/)' || true)
+# Block secrets / local env from being committed (even with `git add -f`).
+# `*.example` templates are allowlisted — placeholders by definition, safe to version.
+blocked=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^(\.dev\.vars(\..*)?|\.env(\..*)?|secrets\.json|Share/|Scripts/|\.wrangler/)' | grep -v '\.example$' || true)
 if [ -n "$blocked" ]; then
   echo "blocked: refusing to commit secrets/local files:"
   echo "$blocked"

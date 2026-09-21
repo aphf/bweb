@@ -23,20 +23,26 @@ describe("/api/visitors", () => {
 		expect(res.status).toBe(405);
 	});
 
-	it("fetches live upstream on cold MISS", async () => {
+	it("handles cold cache with or without a token", async () => {
 		await env.RATE_LIMITER.delete("cache:visitors:v1");
 		await env.RATE_LIMITER.delete("lock:visitors:revalidate");
 		const res = await call("/api/visitors");
-		expect(res.headers.get("X-Cache-Status")).toBe("MISS");
+		const cacheStatus = res.headers.get("X-Cache-Status");
 		const body = (await res.json()) as { total: unknown; live: unknown };
-		if (res.status === 200) {
-			expect(body.total).toEqual(expect.any(Number));
-			expect(body.live).toEqual(expect.any(Number));
-		} else {
-			// Upstream unreachable: fail-soft for UI.
-			expect(res.status).toBe(502);
+		if (cacheStatus === "BYPASS") {
+			expect(res.status).toBe(200);
 			expect(body.total).toBeNull();
 			expect(body.live).toBe(0);
+		} else {
+			expect(cacheStatus).toBe("MISS");
+			if (res.status === 200) {
+				expect(body.total).toEqual(expect.any(Number));
+				expect(body.live).toEqual(expect.any(Number));
+			} else {
+				expect(res.status).toBe(502);
+				expect(body.total).toBeNull();
+				expect(body.live).toBe(0);
+			}
 		}
 		await env.RATE_LIMITER.delete("cache:visitors:v1");
 	});
