@@ -39,5 +39,7 @@ secrets.json
 # Temp
 temp_init_dir/
 
+loadtest/
+
 # OS
 Thumbs.db
