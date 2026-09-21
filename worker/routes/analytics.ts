@@ -1,6 +1,6 @@
-const UPSTREAM_SCRIPT = "https://cloud.umami.is/script.js";
-const UPSTREAM_SEND = "https://gateway.umami.is/api/send";
-const UPSTREAM_COLLECT = "https://gateway.umami.is/api/collect";
+const UPSTREAM_SCRIPT = "https://umami.ranjan.cloud/script.js";
+const UPSTREAM_SEND = "https://umami.ranjan.cloud/api/send";
+const UPSTREAM_COLLECT = "https://umami.ranjan.cloud/api/send";
 
 export async function handleAnalyticsScript(
 	request: Request,
@@ -26,6 +26,8 @@ export async function handleAnalyticsScript(
 
 		const body = await upstream.text();
 		const rewritten = body
+			.replaceAll("https:\\/\\/umami.ranjan.cloud", "")
+			.replaceAll("https://umami.ranjan.cloud", "")
 			.replaceAll("https:\\/\\/gateway.umami.is", "")
 			.replaceAll("https://gateway.umami.is", "")
 			.replaceAll("https:\\/\\/cloud.umami.is", "")
