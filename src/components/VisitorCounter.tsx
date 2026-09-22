@@ -54,13 +54,15 @@ function ExpandedCard({
 					<span className={labelClass}>All time</span>
 					<span className={valueClass}>{fullTotal ?? "—"}</span>
 				</div>
-				<div className="flex items-baseline justify-between gap-2">
-					<span className={`flex items-center gap-1.5 ${labelClass}`}>
-						Currently here
-						<LiveDot />
-					</span>
-					<span className={valueClass}>{live}</span>
-				</div>
+				{live > 0 && (
+					<div className="flex items-baseline justify-between gap-2">
+						<span className={`flex items-center gap-1.5 ${labelClass}`}>
+							Currently here
+							<LiveDot />
+						</span>
+						<span className={valueClass}>{live}</span>
+					</div>
+				)}
 			</div>
 		</div>
 	);
