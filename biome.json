@@ -16,7 +16,8 @@
 			"!skills.lock.json",
 			"!skills-lock.json",
 			"!worker-configuration.d.ts",
-			"!src/components/animate-ui"
+			"!src/components/animate-ui",
+			"!src/components/ui"
 		]
 	},
 	"formatter": {

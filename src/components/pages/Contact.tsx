@@ -1,19 +1,32 @@
+import { DrawablyBadge, DrawablyToggle } from "drawably/react";
 import {
 	IconEnvelopeFill18,
 	IconMsgWritingFill18,
-	IconPaperPlane2Fill18,
 	IconUserFill18,
 } from "nucleo-ui-essential-fill-18";
 import type React from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import "drawably/style.css";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/animate-ui/components/radix/popover";
+import { LoaderCircle } from "@/components/animate-ui/icons/loader-circle";
+import { Send } from "@/components/animate-ui/icons/send";
+import { Button } from "@/components/animate-ui/primitives/buttons/button";
 import { useSEO } from "../../hooks/useSEO";
+import { useTheme } from "../../hooks/useTheme";
 import { trackEvent } from "../../lib/analytics";
 import { Dock } from "../Dock";
 import { PageHeader } from "../PageHeader";
+import { Checkbox } from "../ui/checkbox";
+import { RadiantLines } from "../ui/radiant-lines";
 
 export const Contact = () => {
 	const navigate = useNavigate();
+	const { theme, setTheme } = useTheme();
 	const onExit = () => navigate("/");
 
 	const handleNavigate = (dest: string) => {
@@ -46,6 +59,48 @@ export const Contact = () => {
 		"idle" | "loading" | "success" | "error"
 	>("idle");
 	const submittingRef = useRef(false);
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const boostRef = useRef(0);
+	const decayTimerRef = useRef<number | null>(null);
+	const [warpBoost, setWarpBoost] = useState(0);
+	const [warpDir, setWarpDir] = useState<-1 | 1>(-1);
+
+	useEffect(() => {
+		return () => {
+			if (decayTimerRef.current !== null) {
+				window.clearInterval(decayTimerRef.current);
+			}
+		};
+	}, []);
+
+	const handleWheel = (e: React.WheelEvent) => {
+		if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+			return;
+		}
+		const scroller = scrollRef.current;
+		if (scroller && scroller.scrollHeight > scroller.clientHeight + 1) {
+			return; // real scrolling already drives the warp
+		}
+		const delta = e.deltaY / 150;
+		if (delta === 0) return;
+		setWarpDir(delta > 0 ? 1 : -1);
+		boostRef.current = Math.min(14, boostRef.current + Math.abs(delta));
+		setWarpBoost(boostRef.current);
+		if (decayTimerRef.current !== null) {
+			window.clearInterval(decayTimerRef.current);
+		}
+		decayTimerRef.current = window.setInterval(() => {
+			boostRef.current *= 0.85;
+			if (Math.abs(boostRef.current) < 0.05) {
+				boostRef.current = 0;
+				if (decayTimerRef.current !== null) {
+					window.clearInterval(decayTimerRef.current);
+					decayTimerRef.current = null;
+				}
+			}
+			setWarpBoost(boostRef.current);
+		}, 50);
+	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -97,10 +152,76 @@ export const Contact = () => {
 		trackEvent("contact-start");
 	};
 
+	const handleDrawablyToggle = () => {
+		const next = theme === "dark" ? "light" : "dark";
+		setTheme(next);
+		trackEvent("toggle-theme", { to: next, source: "contact-drawably-toggle" });
+	};
+
+	const checks = [
+		{ label: "Your name", done: isNameValid },
+		{ label: "Valid email address", done: isEmailValid },
+		{
+			label: `Message at least 3 words (${messageWordCount}/3)`,
+			done: isMessageValid,
+		},
+	];
+
+	const showHint = !isFormValid && status !== "loading" && status !== "success";
+
+	const canSubmit = isFormValid && status !== "loading" && status !== "success";
+
+	const sendButton = (
+		<Button
+			type={canSubmit ? "submit" : "button"}
+			disabled={status === "loading" || status === "success"}
+			aria-disabled={!isFormValid}
+			className={`font-bold py-1.5 px-4 rounded-sm transition-[background-color,border-color,color] duration-300 flex items-center justify-center gap-2 border text-sm outline-none focus-visible:ring-2 focus-visible:ring-elegant-accent ${
+				status === "success"
+					? "bg-linear-to-r from-violet-600 to-indigo-600 text-white border-transparent cursor-default shadow-md"
+					: status === "error"
+						? "bg-red-500 text-white hover:bg-red-600 border-transparent cursor-pointer"
+						: isFormValid
+							? "bg-elegant-accent hover:bg-elegant-accent-hover text-elegant-bg border-transparent cursor-pointer shadow-md"
+							: "bg-elegant-card border-elegant-border text-elegant-text-secondary cursor-help hover:bg-elegant-card"
+			}`}
+		>
+			{status === "loading" ? (
+				<LoaderCircle size={16} animate aria-hidden="true" />
+			) : (
+				<Send
+					size={16}
+					animate={status === "success"}
+					animateOnHover
+					aria-hidden="true"
+				/>
+			)}
+			{status === "loading"
+				? "Sending…"
+				: status === "success"
+					? "Sent!"
+					: status === "error"
+						? "Failed to Send"
+						: "Send"}
+		</Button>
+	);
+
 	return (
-		<div className="h-full w-full bg-elegant-bg text-elegant-text-secondary font-mono overflow-hidden">
-			<div className="h-full flex flex-col">
-				<div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+		<div
+			className="relative h-full w-full bg-elegant-bg text-elegant-text-secondary font-mono overflow-hidden"
+			onWheel={handleWheel}
+		>
+			<RadiantLines
+				containerRef={scrollRef}
+				starCount={600}
+				displacement={1 + warpBoost}
+				direction={warpDir}
+			/>
+			<div className="relative z-10 h-full flex flex-col">
+				<div
+					ref={scrollRef}
+					className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+				>
 					<PageHeader
 						currentPath="contact"
 						onNavigate={handleNavigate}
@@ -112,19 +233,17 @@ export const Contact = () => {
 							className="max-w-2xl mx-auto w-full"
 							aria-labelledby="contact-heading"
 						>
-							<div className="bg-elegant-card border border-elegant-border rounded-sm p-6 shadow-2xl">
-								<div className="flex items-center gap-3 mb-6">
-									<IconPaperPlane2Fill18
-										className="text-elegant-text-muted"
-										size={20}
-										aria-hidden="true"
-									/>
+							<div className="bg-elegant-card/40 border border-elegant-border rounded-sm p-6 shadow-2xl">
+								<div className="mb-6">
 									<h1
 										id="contact-heading"
 										className="text-xl font-bold text-elegant-text-primary text-balance"
 									>
-										Send Message
+										Say Hello
 									</h1>
+									<p className="mt-1.5 text-sm text-elegant-text-secondary">
+										I’ll usually get back to you within a day or two.
+									</p>
 								</div>
 
 								<form
@@ -140,13 +259,7 @@ export const Contact = () => {
 												htmlFor="name"
 												className="block text-xs text-elegant-text-secondary mb-1.5"
 											>
-												Name{" "}
-												<span
-													className="text-elegant-accent"
-													aria-hidden="true"
-												>
-													*
-												</span>
+												Name
 											</label>
 											<div className="relative">
 												<IconUserFill18
@@ -167,7 +280,7 @@ export const Contact = () => {
 															name: e.target.value,
 														}))
 													}
-													className="w-full bg-elegant-bg border border-elegant-border rounded-sm pl-10 pr-3 py-2.5 text-sm text-elegant-text-primary outline-none focus-visible:ring-1 focus-visible:ring-elegant-accent focus-visible:border-elegant-accent transition-colors placeholder-elegant-text-muted"
+													className="w-full bg-elegant-bg/50 border border-elegant-border rounded-sm pl-10 pr-3 py-2.5 text-sm text-elegant-text-primary outline-none focus-visible:ring-1 focus-visible:ring-blue-500 focus-visible:border-blue-500 transition-[box-shadow,border-color] placeholder-elegant-text-muted"
 													placeholder="Enter your name"
 												/>
 											</div>
@@ -178,13 +291,7 @@ export const Contact = () => {
 												htmlFor="email"
 												className="block text-xs text-elegant-text-secondary mb-1.5"
 											>
-												Email{" "}
-												<span
-													className="text-elegant-accent"
-													aria-hidden="true"
-												>
-													*
-												</span>
+												Email
 											</label>
 											<div className="relative">
 												<IconEnvelopeFill18
@@ -206,7 +313,7 @@ export const Contact = () => {
 															email: e.target.value,
 														}))
 													}
-													className="w-full bg-elegant-bg border border-elegant-border rounded-sm pl-10 pr-3 py-2.5 text-sm text-elegant-text-primary outline-none focus-visible:ring-1 focus-visible:ring-elegant-accent focus-visible:border-elegant-accent transition-colors placeholder-elegant-text-muted"
+													className="w-full bg-elegant-bg/50 border border-elegant-border rounded-sm pl-10 pr-3 py-2.5 text-sm text-elegant-text-primary outline-none focus-visible:ring-1 focus-visible:ring-blue-500 focus-visible:border-blue-500 transition-[box-shadow,border-color] placeholder-elegant-text-muted"
 													placeholder="your.email@example.com"
 												/>
 											</div>
@@ -218,10 +325,7 @@ export const Contact = () => {
 											htmlFor="message"
 											className="block text-xs text-elegant-text-secondary mb-1.5"
 										>
-											Message{" "}
-											<span className="text-elegant-accent" aria-hidden="true">
-												*
-											</span>
+											Message
 										</label>
 										<div className="relative">
 											<IconMsgWritingFill18
@@ -241,46 +345,92 @@ export const Contact = () => {
 													}))
 												}
 												rows={5}
-												className="w-full bg-elegant-bg border border-elegant-border rounded-sm pl-10 pr-3 py-2.5 text-sm text-elegant-text-primary outline-none focus-visible:ring-1 focus-visible:ring-elegant-accent focus-visible:border-elegant-accent transition-colors resize-none placeholder-elegant-text-muted"
+												className="w-full bg-elegant-bg/50 border border-elegant-border rounded-sm pl-10 pr-3 py-2.5 text-sm text-elegant-text-primary outline-none focus-visible:ring-1 focus-visible:ring-blue-500 focus-visible:border-blue-500 transition-[box-shadow,border-color] resize-none placeholder-elegant-text-muted"
 												placeholder="Write your message here…"
 											/>
 										</div>
 									</div>
 
-									<div aria-live="polite">
-										<button
-											type="submit"
-											disabled={
-												status === "loading" ||
-												status === "success" ||
-												!isFormValid
-											}
-											className={`w-full font-bold py-2.5 px-6 rounded-sm transition-[transform,background-color,border-color,color] duration-300 flex items-center justify-center gap-2 border text-sm outline-none focus-visible:ring-2 focus-visible:ring-elegant-accent ${
-												status === "success"
-													? "bg-green-500 text-white hover:bg-green-600 border-transparent cursor-default"
-													: status === "error"
-														? "bg-red-500 text-white hover:bg-red-600 border-transparent cursor-pointer"
-														: isFormValid
-															? "bg-elegant-accent hover:bg-elegant-accent-hover text-elegant-bg border-transparent cursor-pointer shadow-md active:scale-[0.99]"
-															: "bg-elegant-card border-elegant-border text-elegant-text-muted/50 cursor-not-allowed opacity-40 hover:bg-elegant-card"
-											}`}
-										>
-											<IconPaperPlane2Fill18
-												size={16}
-												className={status === "loading" ? "animate-pulse" : ""}
-												aria-hidden="true"
-											/>
-											{status === "loading"
-												? "Sending…"
-												: status === "success"
-													? "Message Sent!"
-													: status === "error"
-														? "Failed to Send"
-														: "Send Message"}
-										</button>
+									<div
+										aria-live="polite"
+										className="flex items-center justify-end gap-3"
+									>
+										{showHint ? (
+											<Popover>
+												<PopoverTrigger asChild>{sendButton}</PopoverTrigger>
+												<PopoverContent
+													side="bottom"
+													align="center"
+													className="w-72 rounded-xl border border-elegant-border bg-elegant-card/95 p-3.5 font-mono text-sm text-elegant-text-primary shadow-2xl backdrop-blur-md outline-none"
+												>
+													<p className="text-xs text-elegant-text-secondary">
+														Please make sure you have entered these:
+													</p>
+													<ul className="mt-2.5 space-y-1.5">
+														{checks.map((check) => (
+															<li
+																key={check.label}
+																className="flex items-center gap-2 text-xs"
+															>
+																<Checkbox
+																	checked={check.done}
+																	disabled
+																	aria-hidden="true"
+																/>
+																<span
+																	className={
+																		check.done
+																			? "text-elegant-text-muted line-through"
+																			: "text-elegant-text-primary"
+																	}
+																>
+																	{check.label}
+																	<span className="sr-only">
+																		{check.done ? " (done)" : " (missing)"}
+																	</span>
+																</span>
+															</li>
+														))}
+													</ul>
+												</PopoverContent>
+											</Popover>
+										) : (
+											sendButton
+										)}
 									</div>
 								</form>
 							</div>
+
+							<p className="mt-8 text-center text-xs text-elegant-text-muted">
+								<DrawablyBadge
+									key={theme}
+									seed={1760748534}
+									roughness={0.3}
+									boil={0.8}
+									stroke="#6d4bd6"
+									className="leading-loose"
+									style={{ padding: "10px 20px" }}
+								>
+									scroll to travel through space
+									{theme !== "dark" && (
+										<>
+											<br />
+											<span className="inline-flex items-center gap-1.5">
+												best viewed in dark mode
+												<DrawablyToggle
+													seed={1637470322}
+													roughness={0.4}
+													boil={0.6}
+													stroke="#6d4bd6"
+													checked={false}
+													onChange={handleDrawablyToggle}
+													aria-label="Switch to dark mode"
+												/>
+											</span>
+										</>
+									)}
+								</DrawablyBadge>
+							</p>
 						</section>
 					</main>
 				</div>
