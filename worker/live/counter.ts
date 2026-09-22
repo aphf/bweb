@@ -10,7 +10,6 @@ interface Attachment {
 const EVICT_AFTER_MS = 50_000;
 const ALARM_INTERVAL_MS = 30_000;
 const MAX_CID_LENGTH = 64;
-
 function sanitizeCid(raw: string | null): string | null {
 	if (!raw) return null;
 	const trimmed = raw.trim().slice(0, MAX_CID_LENGTH);
@@ -19,6 +18,8 @@ function sanitizeCid(raw: string | null): string | null {
 }
 
 export class LiveCounter extends DurableObject<Env> {
+	private lastSent: number | null = null;
+
 	private socketsOf(): WebSocket[] {
 		try {
 			return this.ctx.getWebSockets();
@@ -55,7 +56,10 @@ export class LiveCounter extends DurableObject<Env> {
 	}
 
 	private broadcast(): void {
-		const payload = JSON.stringify({ type: "count", live: this.liveCount() });
+		const count = this.liveCount();
+		if (this.lastSent !== null && count === this.lastSent) return;
+		this.lastSent = count;
+		const payload = JSON.stringify({ type: "count", live: count });
 		for (const ws of this.socketsOf()) {
 			try {
 				ws.send(payload);
@@ -101,6 +105,9 @@ export class LiveCounter extends DurableObject<Env> {
 		} satisfies Attachment);
 
 		await this.ensureAlarm();
+		try {
+			server.send(JSON.stringify({ type: "count", live: this.liveCount() }));
+		} catch {}
 		this.broadcast();
 
 		return new Response(null, { status: 101, webSocket: client });
