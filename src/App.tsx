@@ -204,6 +204,30 @@ function RootLayout() {
 		}
 	}, [bringToFront]);
 
+	// Social bio attribution (set by /x, /github, etc. redirects via cookie)
+	useEffect(() => {
+		try {
+			const match = document.cookie
+				.split(";")
+				.map((c) => c.trim())
+				.find((c) => c.startsWith("bweb_attr="));
+			if (!match) return;
+			const source = decodeURIComponent(match.slice("bweb_attr=".length));
+			if (
+				source !== "x" &&
+				source !== "github" &&
+				source !== "linkedin" &&
+				source !== "telegram" &&
+				source !== "instagram"
+			) {
+				return;
+			}
+			// biome-ignore lint/suspicious/noDocumentCookie: clear one-shot attribution cookie
+			document.cookie = "bweb_attr=; Path=/; Max-Age=0; SameSite=Lax";
+			trackEvent("social-inbound", { source });
+		} catch {}
+	}, []);
+
 	// Warm up all windows and pages in the background after initial desktop paint
 	useEffect(() => {
 		if (typeof window === "undefined") return;

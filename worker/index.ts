@@ -33,6 +33,12 @@ import {
 } from "./routes/pages-assets";
 import { handlePublicFs } from "./routes/public-fs";
 import { handleSharedNote } from "./routes/shared-note";
+import {
+	getInboundSource,
+	getOutboundTarget,
+	handleOutboundRedirect,
+	handleSocialRedirect,
+} from "./routes/social-redirect";
 import { handleVisitors, revalidateVisitors } from "./routes/visitors";
 
 export { LiveCounter };
@@ -58,6 +64,18 @@ async function route(
 	}
 	if (pathname === "/api/send" || pathname === "/api/collect") {
 		return handleAnalyticsSend(request);
+	}
+
+	// ---- Social links ----
+	// Inbound bio links (/via/* -> / with cookie, clean bar)
+	const inboundSource = getInboundSource(pathname);
+	if (inboundSource) {
+		return handleSocialRedirect(request, inboundSource);
+	}
+	// Outbound short links (/x -> profile)
+	const outboundTarget = getOutboundTarget(pathname);
+	if (outboundTarget) {
+		return handleOutboundRedirect(outboundTarget);
 	}
 
 	// ---- API ----
