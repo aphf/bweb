@@ -69,7 +69,10 @@ export class LiveCounter extends DurableObject<Env> {
 
 	private async ensureAlarm(): Promise<void> {
 		try {
-			await this.ctx.storage.setAlarm(Date.now() + ALARM_INTERVAL_MS);
+			const existing = await this.ctx.storage.getAlarm();
+			if (existing === null || existing < Date.now()) {
+				await this.ctx.storage.setAlarm(Date.now() + ALARM_INTERVAL_MS);
+			}
 		} catch {}
 	}
 
@@ -115,31 +118,13 @@ export class LiveCounter extends DurableObject<Env> {
 
 	async webSocketMessage(
 		ws: WebSocket,
-		message: ArrayBuffer | string,
+		_message: ArrayBuffer | string,
 	): Promise<void> {
-		let touch = true;
-		if (typeof message === "string") {
+		const prev = this.readAttachment(ws);
+		if (prev) {
 			try {
-				const parsed: unknown = JSON.parse(message);
-				if (
-					typeof parsed === "object" &&
-					parsed !== null &&
-					(parsed as { type?: unknown }).type !== undefined &&
-					!["heartbeat", "ping", "hello"].includes(
-						String((parsed as { type?: unknown }).type),
-					)
-				) {
-					touch = true;
-				}
+				ws.serializeAttachment({ ...prev, lastSeen: Date.now() });
 			} catch {}
-		}
-		if (touch) {
-			const prev = this.readAttachment(ws);
-			if (prev) {
-				try {
-					ws.serializeAttachment({ ...prev, lastSeen: Date.now() });
-				} catch {}
-			}
 		}
 		await this.ensureAlarm();
 		this.broadcast();
