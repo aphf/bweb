@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { kvDelete, kvGet, kvPut } from "../lib/d1-kv";
 import { json } from "../lib/json";
 
 const STATUS_CACHE_KEY = "cache:status:v1";
@@ -27,9 +28,9 @@ async function readStatusCache(env: Env): Promise<{
 	data: StatusData;
 	cachedAt: number;
 } | null> {
-	if (!env.RATE_LIMITER) return null;
+	if (!env.DB) return null;
 	try {
-		const raw = await env.RATE_LIMITER.get(STATUS_CACHE_KEY);
+		const raw = await kvGet(env.DB, STATUS_CACHE_KEY);
 		if (!raw) return null;
 		const parsed: unknown = JSON.parse(raw);
 		if (typeof parsed !== "object" || parsed === null) return null;
@@ -62,9 +63,10 @@ async function readStatusCache(env: Env): Promise<{
 }
 
 async function writeStatusCache(env: Env, data: StatusData): Promise<void> {
-	if (!env.RATE_LIMITER) return;
+	if (!env.DB) return;
 	try {
-		await env.RATE_LIMITER.put(
+		await kvPut(
+			env.DB,
 			STATUS_CACHE_KEY,
 			JSON.stringify({ data, cached_at: Date.now() }),
 			{ expirationTtl: 120 },
@@ -113,23 +115,21 @@ async function revalidateStatus(
 	apiUrl: string,
 	apiKey: string,
 ): Promise<void> {
-	if (env.RATE_LIMITER) {
+	if (env.DB) {
 		try {
-			const existing = await env.RATE_LIMITER.get(STATUS_REVALIDATE_LOCK_KEY);
+			const existing = await kvGet(env.DB, STATUS_REVALIDATE_LOCK_KEY);
 			if (existing) return;
-			await env.RATE_LIMITER.put(
-				STATUS_REVALIDATE_LOCK_KEY,
-				String(Date.now()),
-				{ expirationTtl: STATUS_REVALIDATE_LOCK_TTL_SECONDS },
-			);
+			await kvPut(env.DB, STATUS_REVALIDATE_LOCK_KEY, String(Date.now()), {
+				expirationTtl: STATUS_REVALIDATE_LOCK_TTL_SECONDS,
+			});
 		} catch {}
 	}
 	try {
 		const fresh = await fetchStatusUpstream(apiUrl, apiKey);
 		if (fresh) await writeStatusCache(env, fresh);
 	} finally {
-		if (env.RATE_LIMITER) {
-			await env.RATE_LIMITER.delete(STATUS_REVALIDATE_LOCK_KEY).catch(() => {});
+		if (env.DB) {
+			await kvDelete(env.DB, STATUS_REVALIDATE_LOCK_KEY).catch(() => {});
 		}
 	}
 }
@@ -180,7 +180,7 @@ export async function handleStatus(
 
 	const fresh = await fetchStatusUpstream(apiUrl, apiKey);
 	if (fresh) {
-		await writeStatusCache(env, fresh);
+		ctx.waitUntil(writeStatusCache(env, fresh));
 		return statusResponse(fresh, "MISS");
 	}
 	return json(

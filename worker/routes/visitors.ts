@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { kvDelete, kvGet, kvPut } from "../lib/d1-kv";
 import { json } from "../lib/json";
 
 const DEFAULT_UMAMI_BASE = "https://umami.ranjan.cloud";
@@ -35,9 +36,9 @@ async function readCache(env: Env): Promise<{
 	data: VisitorsData;
 	cachedAt: number;
 } | null> {
-	if (!env.RATE_LIMITER) return null;
+	if (!env.DB) return null;
 	try {
-		const raw = await env.RATE_LIMITER.get(CACHE_KEY);
+		const raw = await kvGet(env.DB, CACHE_KEY);
 		if (!raw) return null;
 		const parsed: unknown = JSON.parse(raw);
 		if (typeof parsed !== "object" || parsed === null) return null;
@@ -54,9 +55,10 @@ async function readCache(env: Env): Promise<{
 }
 
 async function writeCache(env: Env, data: VisitorsData): Promise<void> {
-	if (!env.RATE_LIMITER) return;
+	if (!env.DB) return;
 	try {
-		await env.RATE_LIMITER.put(
+		await kvPut(
+			env.DB,
 			CACHE_KEY,
 			JSON.stringify({ data, cached_at: Date.now() }),
 			{ expirationTtl: 120 },
@@ -109,9 +111,9 @@ export async function revalidateVisitors(env: Env): Promise<void> {
 	const config = umamiConfig(env);
 	if (!config) return;
 
-	if (env.RATE_LIMITER) {
+	if (env.DB) {
 		try {
-			const existing = await env.RATE_LIMITER.get(REVALIDATE_LOCK_KEY);
+			const existing = await kvGet(env.DB, REVALIDATE_LOCK_KEY);
 			if (existing) {
 				console.info({
 					message: "visitors_revalidation_deduped",
@@ -119,7 +121,7 @@ export async function revalidateVisitors(env: Env): Promise<void> {
 				});
 				return;
 			}
-			await env.RATE_LIMITER.put(REVALIDATE_LOCK_KEY, String(Date.now()), {
+			await kvPut(env.DB, REVALIDATE_LOCK_KEY, String(Date.now()), {
 				expirationTtl: REVALIDATE_LOCK_TTL_SECONDS,
 			});
 		} catch (error) {
@@ -152,8 +154,8 @@ export async function revalidateVisitors(env: Env): Promise<void> {
 			error: error instanceof Error ? error.message : String(error),
 		});
 	} finally {
-		if (env.RATE_LIMITER) {
-			await env.RATE_LIMITER.delete(REVALIDATE_LOCK_KEY).catch(() => {});
+		if (env.DB) {
+			await kvDelete(env.DB, REVALIDATE_LOCK_KEY).catch(() => {});
 		}
 	}
 }
@@ -189,7 +191,7 @@ export async function handleVisitors(
 		config.token,
 	);
 	if (fresh) {
-		await writeCache(env, fresh);
+		ctx.waitUntil(writeCache(env, fresh));
 		return response(fresh, "MISS");
 	}
 

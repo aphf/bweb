@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { kvDelete, kvGet, kvPut } from "../lib/d1-kv";
 import { json } from "../lib/json";
 import {
 	getReauthorizationNotice,
@@ -15,10 +16,9 @@ const UPSTREAM_TIMEOUT_MS = 6_000;
 const LAST_PLAYED_KEY = "cache:spotify:last_played";
 const LAST_PLAYED_TTL_SECONDS = 60 * 60 * 24 * 7;
 // Singleflight-ish guard: concurrent stale hits share one revalidation.
-// KV has no atomic CAS, so a check-then-act race can still double-fetch;
+// No atomic CAS here, so a check-then-act race can still double-fetch;
 // N-to-~2 worst case beats N upstream fetches.
 const REVALIDATE_LOCK_KEY = "lock:spotify:revalidate";
-// KV enforces a 60s minimum expirationTtl — this is the smallest working lock.
 const REVALIDATE_LOCK_TTL_SECONDS = 60;
 
 type CacheStatus = "HIT" | "STALE" | "MISS" | "BYPASS";
@@ -51,9 +51,9 @@ function jsonResponse(
 async function getLastPlayed(
 	env: SpotifyEnv,
 ): Promise<PublicPlaybackResponse | null> {
-	if (!env.RATE_LIMITER) return null;
+	if (!env.DB) return null;
 	try {
-		const raw = await env.RATE_LIMITER.get(LAST_PLAYED_KEY);
+		const raw = await kvGet(env.DB, LAST_PLAYED_KEY);
 		if (!raw) return null;
 		const parsed: unknown = JSON.parse(raw);
 		if (
@@ -104,9 +104,9 @@ async function idleResponseWithHistory(
 async function readPlaybackCache(
 	env: SpotifyEnv,
 ): Promise<{ entry: PublicPlaybackResponse; fresh: boolean } | null> {
-	if (!env.RATE_LIMITER) return null;
+	if (!env.DB) return null;
 	try {
-		const cachedRaw = await env.RATE_LIMITER.get(CACHE_KEY);
+		const cachedRaw = await kvGet(env.DB, CACHE_KEY);
 		if (!cachedRaw) return null;
 		const cached: unknown = JSON.parse(cachedRaw);
 		if (
@@ -138,11 +138,11 @@ async function storePlayback(
 	env: SpotifyEnv,
 	publicData: PublicPlaybackResponse,
 ): Promise<void> {
-	if (!env.RATE_LIMITER) return;
+	if (!env.DB) return;
 	const now = Date.now();
 	const payload = JSON.stringify({ data: publicData, cached_at: now });
 	try {
-		await env.RATE_LIMITER.put(CACHE_KEY, payload, {
+		await kvPut(env.DB, CACHE_KEY, payload, {
 			expirationTtl: 60,
 		});
 	} catch (error) {
@@ -153,7 +153,7 @@ async function storePlayback(
 		});
 	}
 	try {
-		await env.RATE_LIMITER.put(LAST_PLAYED_KEY, payload, {
+		await kvPut(env.DB, LAST_PLAYED_KEY, payload, {
 			expirationTtl: LAST_PLAYED_TTL_SECONDS,
 		});
 	} catch (error) {
@@ -229,9 +229,9 @@ async function fetchUpstream(env: SpotifyEnv): Promise<UpstreamResult | null> {
 }
 
 export async function revalidatePlayback(env: Env): Promise<void> {
-	if (env.RATE_LIMITER) {
+	if (env.DB) {
 		try {
-			const existing = await env.RATE_LIMITER.get(REVALIDATE_LOCK_KEY);
+			const existing = await kvGet(env.DB, REVALIDATE_LOCK_KEY);
 			if (existing) {
 				console.info({
 					message: "spotify_revalidation_deduped",
@@ -239,7 +239,7 @@ export async function revalidatePlayback(env: Env): Promise<void> {
 				});
 				return;
 			}
-			await env.RATE_LIMITER.put(REVALIDATE_LOCK_KEY, String(Date.now()), {
+			await kvPut(env.DB, REVALIDATE_LOCK_KEY, String(Date.now()), {
 				expirationTtl: REVALIDATE_LOCK_TTL_SECONDS,
 			});
 		} catch (error) {
@@ -280,8 +280,8 @@ export async function revalidatePlayback(env: Env): Promise<void> {
 			error: error instanceof Error ? error.message : String(error),
 		});
 	} finally {
-		if (env.RATE_LIMITER) {
-			await env.RATE_LIMITER.delete(REVALIDATE_LOCK_KEY).catch(() => {});
+		if (env.DB) {
+			await kvDelete(env.DB, REVALIDATE_LOCK_KEY).catch(() => {});
 		}
 	}
 }

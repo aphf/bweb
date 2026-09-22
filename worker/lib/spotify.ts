@@ -2,9 +2,10 @@ import * as React from "react";
 import { render } from "react-email";
 import { type ErrorResponse, Resend } from "resend";
 import SpotifyReauthNotificationEmail from "../../emails/SpotifyReauthNotification";
+import { kvGet, kvPut } from "./d1-kv";
 
 export interface SpotifyEnv {
-	RATE_LIMITER?: KVNamespace;
+	DB?: D1Database;
 	SPOTIFY_API_URL?: string;
 	SPOTIFY_API_KEY?: string;
 	RESEND_API_KEY?: string;
@@ -301,10 +302,10 @@ async function sendReauthorizationEmail(
 }
 
 async function persistState(
-	kv: KVNamespace,
+	db: D1Database,
 	state: ReauthorizationState,
 ): Promise<void> {
-	await kv.put(REAUTH_STATE_KEY, JSON.stringify(state), {
+	await kvPut(db, REAUTH_STATE_KEY, JSON.stringify(state), {
 		expirationTtl: REAUTH_STATE_TTL_SECONDS,
 	});
 }
@@ -315,18 +316,18 @@ export async function processReauthorizationAlert(
 ): Promise<void> {
 	const milestone = getReauthMilestone(notice.days_remaining);
 	if (milestone === null) return;
-	const kv = env.RATE_LIMITER;
-	if (!kv) {
+	const db = env.DB;
+	if (!db) {
 		console.warn({
 			message: "spotify_reauth_notification_disabled",
 			event: "spotify_reauth_notification_disabled",
-			reason: "missing_kv_binding",
+			reason: "missing_db_binding",
 		});
 		return;
 	}
 
 	const now = Date.now();
-	const state = parseState(await kv.get(REAUTH_STATE_KEY));
+	const state = parseState(await kvGet(db, REAUTH_STATE_KEY));
 	const sameCycle = state?.reauthorize_by === notice.reauthorize_by;
 	if (sameCycle && state?.status === "sent" && state.milestone <= milestone) {
 		return;
@@ -341,7 +342,7 @@ export async function processReauthorizationAlert(
 	}
 
 	try {
-		await persistState(kv, {
+		await persistState(db, {
 			status: "pending",
 			milestone,
 			reauthorize_by: notice.reauthorize_by,
@@ -359,7 +360,7 @@ export async function processReauthorizationAlert(
 	try {
 		const resendId = await sendReauthorizationEmail(env, notice, milestone);
 		if (!resendId) return;
-		await persistState(kv, {
+		await persistState(db, {
 			status: "sent",
 			milestone,
 			reauthorize_by: notice.reauthorize_by,
@@ -374,7 +375,7 @@ export async function processReauthorizationAlert(
 		});
 	} catch (error) {
 		try {
-			await persistState(kv, {
+			await persistState(db, {
 				status: "failed",
 				milestone,
 				reauthorize_by: notice.reauthorize_by,

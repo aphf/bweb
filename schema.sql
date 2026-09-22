@@ -46,6 +46,15 @@ CREATE TABLE IF NOT EXISTS config (
     value TEXT
 );
 
+-- D1-backed drop-in for KVNamespace ops used by cron caches, rate limits,
+-- and alert state (see worker/lib/d1-kv.ts). TTL emulated via expires_at
+-- (0 = never expires). Self-created at runtime if missing.
+CREATE TABLE IF NOT EXISTS kv_store (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    expires_at INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS public (
     path TEXT PRIMARY KEY,
     type TEXT NOT NULL,

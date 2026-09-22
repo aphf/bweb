@@ -5,6 +5,7 @@ import {
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import worker from "../index";
+import { kvDelete, kvPut } from "../lib/d1-kv";
 
 async function call(path: string, init?: RequestInit): Promise<Response> {
 	const ctx = createExecutionContext();
@@ -24,8 +25,8 @@ describe("/api/visitors", () => {
 	});
 
 	it("handles cold cache with or without a token", async () => {
-		await env.RATE_LIMITER.delete("cache:visitors:v1");
-		await env.RATE_LIMITER.delete("lock:visitors:revalidate");
+		await kvDelete(env.DB, "cache:visitors:v1");
+		await kvDelete(env.DB, "lock:visitors:revalidate");
 		const res = await call("/api/visitors");
 		const cacheStatus = res.headers.get("X-Cache-Status");
 		const body = (await res.json()) as { total: unknown };
@@ -43,11 +44,12 @@ describe("/api/visitors", () => {
 				expect(body.total).toBeNull();
 			}
 		}
-		await env.RATE_LIMITER.delete("cache:visitors:v1");
+		await kvDelete(env.DB, "cache:visitors:v1");
 	});
 
 	it("serves fresh KV cache as HIT without upstream", async () => {
-		await env.RATE_LIMITER.put(
+		await kvPut(
+			env.DB,
 			"cache:visitors:v1",
 			JSON.stringify({
 				data: { total: 1234 },
@@ -59,11 +61,12 @@ describe("/api/visitors", () => {
 		expect(res.headers.get("X-Cache-Status")).toBe("HIT");
 		const body = (await res.json()) as { total: unknown };
 		expect(body).toEqual({ total: 1234 });
-		await env.RATE_LIMITER.delete("cache:visitors:v1");
+		await kvDelete(env.DB, "cache:visitors:v1");
 	});
 
 	it("serves expired KV cache as STALE and revalidates in background", async () => {
-		await env.RATE_LIMITER.put(
+		await kvPut(
+			env.DB,
 			"cache:visitors:v1",
 			JSON.stringify({
 				data: { total: 1234 },
@@ -75,7 +78,7 @@ describe("/api/visitors", () => {
 		expect(res.headers.get("X-Cache-Status")).toBe("STALE");
 		const body = (await res.json()) as { total: unknown };
 		expect(body).toEqual({ total: 1234 });
-		await env.RATE_LIMITER.delete("cache:visitors:v1");
-		await env.RATE_LIMITER.delete("lock:visitors:revalidate");
+		await kvDelete(env.DB, "cache:visitors:v1");
+		await kvDelete(env.DB, "lock:visitors:revalidate");
 	});
 });

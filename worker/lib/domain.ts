@@ -2,9 +2,10 @@ import * as React from "react";
 import { render } from "react-email";
 import { type ErrorResponse, Resend } from "resend";
 import DomainExpiryNotificationEmail from "../../emails/DomainExpiryNotification";
+import { kvGet, kvPut } from "./d1-kv";
 
 export interface DomainEnv {
-	RATE_LIMITER?: KVNamespace;
+	DB?: D1Database;
 	RESEND_API_KEY?: string;
 	CONTACT_EMAIL_TO?: string;
 	CONTACT_EMAIL_FROM?: string;
@@ -300,11 +301,11 @@ function parseState(value: string | null): DomainAlertState | null {
 }
 
 async function persistState(
-	kv: KVNamespace,
+	db: D1Database,
 	domain: string,
 	state: DomainAlertState,
 ): Promise<void> {
-	await kv.put(stateKey(domain), JSON.stringify(state), {
+	await kvPut(db, stateKey(domain), JSON.stringify(state), {
 		expirationTtl: STATE_TTL_SECONDS,
 	});
 }
@@ -315,18 +316,18 @@ export async function processDomainExpiry(
 ): Promise<void> {
 	const milestone = getDomainMilestone(info.daysRemaining);
 	if (milestone === null) return;
-	const kv = env.RATE_LIMITER;
-	if (!kv) {
+	const db = env.DB;
+	if (!db) {
 		console.warn({
 			message: "domain_expiry_notification_disabled",
 			event: "domain_expiry_notification_disabled",
-			reason: "missing_kv_binding",
+			reason: "missing_db_binding",
 		});
 		return;
 	}
 
 	const now = Date.now();
-	const state = parseState(await kv.get(stateKey(info.domain)));
+	const state = parseState(await kvGet(db, stateKey(info.domain)));
 	// A changed expiry date means the domain was renewed: new cycle, alert again.
 	const sameCycle = state?.expires_at === info.expiresAt;
 	if (sameCycle && state?.status === "sent" && state.milestone <= milestone) {
@@ -342,7 +343,7 @@ export async function processDomainExpiry(
 	}
 
 	try {
-		await persistState(kv, info.domain, {
+		await persistState(db, info.domain, {
 			status: "pending",
 			milestone,
 			expires_at: info.expiresAt,
@@ -361,7 +362,7 @@ export async function processDomainExpiry(
 	try {
 		const resendId = await sendDomainExpiryEmail(env, info, milestone);
 		if (!resendId) return;
-		await persistState(kv, info.domain, {
+		await persistState(db, info.domain, {
 			status: "sent",
 			milestone,
 			expires_at: info.expiresAt,
@@ -377,7 +378,7 @@ export async function processDomainExpiry(
 		});
 	} catch (error) {
 		try {
-			await persistState(kv, info.domain, {
+			await persistState(db, info.domain, {
 				status: "failed",
 				milestone,
 				expires_at: info.expiresAt,

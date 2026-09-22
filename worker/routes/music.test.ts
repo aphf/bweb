@@ -5,14 +5,12 @@ import {
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import worker from "../index";
+import { kvPut } from "../lib/d1-kv";
 
 const CACHE_KEY = "cache:spotify:currently_playing";
 
 async function seedCache(data: unknown, cachedAt: number): Promise<void> {
-	await env.RATE_LIMITER.put(
-		CACHE_KEY,
-		JSON.stringify({ data, cached_at: cachedAt }),
-	);
+	await kvPut(env.DB, CACHE_KEY, JSON.stringify({ data, cached_at: cachedAt }));
 }
 
 async function getMusic(): Promise<Response> {
