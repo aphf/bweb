@@ -11,7 +11,6 @@ const REVALIDATE_LOCK_TTL_SECONDS = 60;
 
 interface VisitorsData {
 	total: number | null;
-	live: number;
 }
 
 function toNonNegativeInt(value: unknown): number | null {
@@ -45,11 +44,10 @@ async function readCache(env: Env): Promise<{
 		const record = parsed as { data?: unknown; cached_at?: unknown };
 		if (typeof record.cached_at !== "number") return null;
 		if (typeof record.data !== "object" || record.data === null) return null;
-		const data = record.data as { total?: unknown; live?: unknown };
+		const data = record.data as { total?: unknown };
 		const total = data.total === null ? null : toNonNegativeInt(data.total);
 		if (data.total !== null && total === null) return null;
-		const live = toNonNegativeInt(data.live) ?? 0;
-		return { data: { total, live }, cachedAt: record.cached_at };
+		return { data: { total }, cachedAt: record.cached_at };
 	} catch {
 		return null;
 	}
@@ -79,25 +77,15 @@ async function fetchUpstream(
 			Accept: "application/json",
 		};
 		const endAt = Date.now();
-		const [statsRes, activeRes] = await Promise.all([
-			fetch(
-				`${base}/api/websites/${encodeURIComponent(websiteId)}/stats?startAt=0&endAt=${endAt}`,
-				{ headers, signal: controller.signal },
-			),
-			fetch(`${base}/api/websites/${encodeURIComponent(websiteId)}/active`, {
-				headers,
-				signal: controller.signal,
-			}),
-		]);
-		if (!statsRes.ok || !activeRes.ok) return null;
-		const [stats, active] = (await Promise.all([
-			statsRes.json(),
-			activeRes.json(),
-		])) as Array<Record<string, unknown>>;
+		const statsRes = await fetch(
+			`${base}/api/websites/${encodeURIComponent(websiteId)}/stats?startAt=0&endAt=${endAt}`,
+			{ headers, signal: controller.signal },
+		);
+		if (!statsRes.ok) return null;
+		const stats = (await statsRes.json()) as Record<string, unknown>;
 		const total = toNonNegativeInt(stats?.visitors);
 		if (total === null) return null;
-		const live = toNonNegativeInt(active?.visitors) ?? 0;
-		return { total, live };
+		return { total };
 	} catch {
 		return null;
 	} finally {
@@ -192,7 +180,7 @@ export async function handleVisitors(
 
 	const config = umamiConfig(env);
 	if (!config) {
-		return response({ total: null, live: 0 }, "BYPASS");
+		return response({ total: null }, "BYPASS");
 	}
 
 	const fresh = await fetchUpstream(
@@ -205,5 +193,5 @@ export async function handleVisitors(
 		return response(fresh, "MISS");
 	}
 
-	return response({ total: null, live: 0 }, "MISS", 502);
+	return response({ total: null }, "MISS", 502);
 }

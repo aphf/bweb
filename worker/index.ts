@@ -1,6 +1,7 @@
 import type { Env } from "./env";
 import { checkDomainExpiries } from "./lib/domain";
 import { json, withPoweredBy } from "./lib/json";
+import { LiveCounter } from "./live/counter";
 import { handleAi } from "./routes/ai";
 import { handleAnalyticsScript, handleAnalyticsSend } from "./routes/analytics";
 import {
@@ -11,6 +12,7 @@ import {
 } from "./routes/auth-admin";
 import { handleContactSubmit, handleInbox } from "./routes/contact";
 import { handleGalleryApi } from "./routes/gallery";
+import { handleLiveCount, handleLiveWebSocket } from "./routes/live";
 import {
 	handleHealth,
 	handlePing,
@@ -32,6 +34,8 @@ import {
 import { handlePublicFs } from "./routes/public-fs";
 import { handleSharedNote } from "./routes/shared-note";
 import { handleVisitors, revalidateVisitors } from "./routes/visitors";
+
+export { LiveCounter };
 
 function stripTrailingSlash(pathname: string): string {
 	if (pathname.length > 1 && pathname.endsWith("/")) {
@@ -105,6 +109,12 @@ async function route(
 	}
 	if (pathname === "/api/visitors") {
 		return handleVisitors(request, env, ctx);
+	}
+	if (pathname === "/api/live") {
+		return handleLiveWebSocket(request, env);
+	}
+	if (pathname === "/api/live/count") {
+		return handleLiveCount(request, env);
 	}
 	if (pathname === "/api/ping") {
 		return handlePing(request);

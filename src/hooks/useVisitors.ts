@@ -2,12 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface VisitorsInfo {
 	total: number | null;
-	live: number;
 }
 
 type VisitorsStatus = "loading" | "ready" | "error";
 
-const INITIAL_STATE: VisitorsInfo = { total: null, live: 0 };
+const INITIAL_STATE: VisitorsInfo = { total: null };
 const POLL_INTERVAL_MS = 30_000;
 
 function toNonNegativeInt(value: unknown): number | null {
@@ -22,8 +21,7 @@ function parseVisitors(value: unknown): VisitorsInfo | null {
 	const totalRaw = record.total;
 	const total = totalRaw === null ? null : toNonNegativeInt(totalRaw);
 	if (totalRaw !== null && total === null) return null;
-	const live = toNonNegativeInt(record.live) ?? 0;
-	return { total, live };
+	return { total };
 }
 
 export function useVisitors() {

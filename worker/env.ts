@@ -1,4 +1,4 @@
-export interface Env extends Cloudflare.Env {
+export interface Env extends Omit<Cloudflare.Env, "UMAMI_API_TOKEN"> {
 	ADMIN_PASSWORD?: string;
 	JWT_SECRET?: string;
 	TELEGRAM_BOT_TOKEN?: string;

@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { useLiveCount } from "../hooks/useLiveCount";
 import { useVisitors } from "../hooks/useVisitors";
 import { trackEvent } from "../lib/analytics";
 
@@ -66,7 +67,8 @@ function ExpandedCard({
 }
 
 export const VisitorCounter = memo(function VisitorCounter() {
-	const { total, live } = useVisitors();
+	const { total } = useVisitors();
+	const { live } = useLiveCount();
 	const [isExpanded, setIsExpanded] = useState(false);
 	const prefersReducedMotion = Boolean(useReducedMotion());
 	const mobileRef = useRef<HTMLDivElement>(null);

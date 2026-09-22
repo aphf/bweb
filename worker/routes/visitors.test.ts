@@ -28,20 +28,19 @@ describe("/api/visitors", () => {
 		await env.RATE_LIMITER.delete("lock:visitors:revalidate");
 		const res = await call("/api/visitors");
 		const cacheStatus = res.headers.get("X-Cache-Status");
-		const body = (await res.json()) as { total: unknown; live: unknown };
+		const body = (await res.json()) as { total: unknown };
 		if (cacheStatus === "BYPASS") {
 			expect(res.status).toBe(200);
 			expect(body.total).toBeNull();
-			expect(body.live).toBe(0);
+			expect(body).toEqual({ total: null });
 		} else {
 			expect(cacheStatus).toBe("MISS");
 			if (res.status === 200) {
 				expect(body.total).toEqual(expect.any(Number));
-				expect(body.live).toEqual(expect.any(Number));
+				expect(body).toEqual({ total: expect.any(Number) });
 			} else {
 				expect(res.status).toBe(502);
 				expect(body.total).toBeNull();
-				expect(body.live).toBe(0);
 			}
 		}
 		await env.RATE_LIMITER.delete("cache:visitors:v1");
@@ -51,15 +50,15 @@ describe("/api/visitors", () => {
 		await env.RATE_LIMITER.put(
 			"cache:visitors:v1",
 			JSON.stringify({
-				data: { total: 1234, live: 2 },
+				data: { total: 1234 },
 				cached_at: Date.now(),
 			}),
 		);
 		const res = await call("/api/visitors");
 		expect(res.status).toBe(200);
 		expect(res.headers.get("X-Cache-Status")).toBe("HIT");
-		const body = (await res.json()) as { total: unknown; live: unknown };
-		expect(body).toEqual({ total: 1234, live: 2 });
+		const body = (await res.json()) as { total: unknown };
+		expect(body).toEqual({ total: 1234 });
 		await env.RATE_LIMITER.delete("cache:visitors:v1");
 	});
 
@@ -67,15 +66,15 @@ describe("/api/visitors", () => {
 		await env.RATE_LIMITER.put(
 			"cache:visitors:v1",
 			JSON.stringify({
-				data: { total: 1234, live: 2 },
+				data: { total: 1234 },
 				cached_at: Date.now() - 60_000,
 			}),
 		);
 		const res = await call("/api/visitors");
 		expect(res.status).toBe(200);
 		expect(res.headers.get("X-Cache-Status")).toBe("STALE");
-		const body = (await res.json()) as { total: unknown; live: unknown };
-		expect(body).toEqual({ total: 1234, live: 2 });
+		const body = (await res.json()) as { total: unknown };
+		expect(body).toEqual({ total: 1234 });
 		await env.RATE_LIMITER.delete("cache:visitors:v1");
 		await env.RATE_LIMITER.delete("lock:visitors:revalidate");
 	});
