@@ -64,19 +64,26 @@ function readLeader(): LeaderRecord | null {
 	}
 }
 
-function toLive(value: unknown): number | null {
+function toPresence(
+	value: unknown,
+): { live: number; connected: boolean } | null {
 	if (typeof value !== "object" || value === null) return null;
 	const rec = value as Record<string, unknown>;
 	const live = rec.live;
 	if (typeof live !== "number" || !Number.isFinite(live) || live < 0) {
 		return null;
 	}
-	return Math.floor(live);
+	const connected = rec.connected;
+	return {
+		live: Math.floor(live),
+		connected: connected === true,
+	};
 }
 
 export function useLiveCount() {
 	const [live, setLive] = useState(0);
 	const [status, setStatus] = useState<LiveStatus>("loading");
+	const [connected, setConnected] = useState(false);
 
 	const tabIdRef = useRef<string>("");
 	const cidRef = useRef<string>("");
@@ -104,9 +111,10 @@ export function useLiveCount() {
 				bc = new BroadcastChannel(BC_NAME);
 				bcRef.current = bc;
 				bc.onmessage = (event: MessageEvent) => {
-					const next = toLive(event.data);
+					const next = toPresence(event.data);
 					if (next !== null) {
-						setLive(next);
+						setLive(next.live);
+						setConnected(next.connected);
 						setStatus("ready");
 					}
 				};
@@ -115,11 +123,12 @@ export function useLiveCount() {
 			}
 		}
 
-		const broadcastCount = (value: number) => {
+		const broadcastCount = (value: number, viaSocket: boolean) => {
 			setLive(value);
+			setConnected(viaSocket);
 			setStatus("ready");
 			try {
-				bcRef.current?.postMessage({ live: value });
+				bcRef.current?.postMessage({ live: value, connected: viaSocket });
 			} catch {}
 		};
 
@@ -147,6 +156,7 @@ export function useLiveCount() {
 		const closeSocket = () => {
 			stopHeartbeat();
 			stopReconnect();
+			setConnected(false);
 			const ws = wsRef.current;
 			wsRef.current = null;
 			if (ws) {
@@ -168,8 +178,16 @@ export function useLiveCount() {
 				});
 				if (!res.ok) return;
 				const payload: unknown = await res.json();
-				const next = toLive(payload);
-				if (next !== null) broadcastCount(next);
+				const next = toPresence(payload);
+				if (next === null) return;
+				setLive(next.live);
+				setStatus("ready");
+				if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+					setConnected(false);
+					try {
+						bcRef.current?.postMessage({ live: next.live, connected: false });
+					} catch {}
+				}
 			} catch {}
 		};
 
@@ -214,6 +232,7 @@ export function useLiveCount() {
 			ws.onopen = () => {
 				if (wsRef.current !== ws) return;
 				backoffRef.current = 0;
+				setConnected(true);
 				try {
 					ws.send(JSON.stringify({ type: "hello", cid, tabId }));
 				} catch {}
@@ -235,8 +254,8 @@ export function useLiveCount() {
 				} catch {
 					return;
 				}
-				const next = toLive(parsed);
-				if (next !== null) broadcastCount(next);
+				const next = toPresence(parsed);
+				if (next !== null) broadcastCount(next.live, true);
 			};
 
 			ws.onerror = () => {
@@ -247,6 +266,7 @@ export function useLiveCount() {
 			ws.onclose = () => {
 				if (wsRef.current === ws) wsRef.current = null;
 				stopHeartbeat();
+				setConnected(false);
 				if (disposedRef.current || !isLeaderRef.current) return;
 				scheduleReconnect();
 				startPollFallback();
@@ -370,5 +390,5 @@ export function useLiveCount() {
 		};
 	}, []);
 
-	return { live, status };
+	return { live, status, connected };
 }

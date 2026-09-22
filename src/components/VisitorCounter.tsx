@@ -1,7 +1,9 @@
 import { X } from "lucide-react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { annotate } from "rough-notation";
 import { useLiveCount } from "../hooks/useLiveCount";
+import { useTheme } from "../hooks/useTheme";
 import { useVisitors } from "../hooks/useVisitors";
 import { trackEvent } from "../lib/analytics";
 
@@ -17,21 +19,53 @@ function LiveDot() {
 	);
 }
 
+function JustYou({ start }: { start: boolean }) {
+	const { theme } = useTheme();
+	const reduceMotion = Boolean(useReducedMotion());
+	const ref = useRef<HTMLSpanElement>(null);
+
+	useEffect(() => {
+		if (!start) return;
+		const el = ref.current;
+		if (!el) return;
+		const annotation = annotate(el, {
+			type: "underline",
+			color: theme === "light" ? "#ec4899" : "#60a5fa",
+			strokeWidth: 2,
+			padding: 3,
+			animate: !reduceMotion,
+			animationDuration: 600,
+		});
+		annotation.show();
+		return () => annotation.remove();
+	}, [theme, reduceMotion, start]);
+
+	return (
+		<span ref={ref} className="font-medium">
+			just you
+		</span>
+	);
+}
+
 function ExpandedCard({
 	compact,
 	fullTotal,
 	live,
+	justYou,
+	entered,
 	onCollapse,
 }: {
 	compact: boolean;
 	fullTotal: string | null;
 	live: number;
+	justYou: boolean;
+	entered: boolean;
 	onCollapse: () => void;
 }) {
 	const titleClass =
 		"font-sans text-[11px] font-semibold text-elegant-text-primary";
 	const labelClass = "font-sans text-[11px] text-elegant-text-secondary";
-	const valueClass = "text-sm font-semibold text-elegant-text-primary";
+	const valueClass = "text-xs font-semibold text-elegant-text-primary";
 	const cardClass = compact
 		? "w-52 rounded-2xl border border-elegant-border bg-elegant-card/70 p-3 shadow-2xl backdrop-blur-xl backdrop-saturate-150"
 		: "w-60 rounded-2xl border border-elegant-border bg-elegant-card/70 p-3 shadow-2xl backdrop-blur-xl backdrop-saturate-150";
@@ -60,7 +94,15 @@ function ExpandedCard({
 							Currently here
 							<LiveDot />
 						</span>
-						<span className={valueClass}>{live}</span>
+						<span className="whitespace-nowrap text-xs font-semibold text-elegant-text-primary">
+							{live}
+							{justYou && (
+								<>
+									{" · "}
+									<JustYou start={entered} />
+								</>
+							)}
+						</span>
 					</div>
 				)}
 			</div>
@@ -70,13 +112,16 @@ function ExpandedCard({
 
 export const VisitorCounter = memo(function VisitorCounter() {
 	const { total } = useVisitors();
-	const { live } = useLiveCount();
+	const { live, connected } = useLiveCount();
+	const justYou = live === 1 && connected;
+	const [entered, setEntered] = useState(false);
 	const [isExpanded, setIsExpanded] = useState(false);
 	const prefersReducedMotion = Boolean(useReducedMotion());
 	const mobileRef = useRef<HTMLDivElement>(null);
 	const desktopRef = useRef<HTMLDivElement>(null);
 
 	const toggle = useCallback(() => {
+		setEntered(false);
 		setIsExpanded((current) => {
 			const next = !current;
 			trackEvent("visitors-toggle", { expanded: next });
@@ -84,7 +129,10 @@ export const VisitorCounter = memo(function VisitorCounter() {
 		});
 	}, []);
 
-	const collapse = useCallback(() => setIsExpanded(false), []);
+	const collapse = useCallback(() => {
+		setEntered(false);
+		setIsExpanded(false);
+	}, []);
 
 	useEffect(() => {
 		if (!isExpanded) return;
@@ -116,8 +164,10 @@ export const VisitorCounter = memo(function VisitorCounter() {
 	const compactTotal = total !== null ? compactFormat.format(total) : null;
 	const summary =
 		fullTotal !== null
-			? `${fullTotal} total visits${live > 0 ? `, ${live} here now` : ""}`
-			: `${live} here now`;
+			? `${fullTotal} total visits${live > 0 ? `, ${justYou ? "only you here now" : `${live} here now`}` : ""}`
+			: justYou
+				? "only you here now"
+				: `${live} here now`;
 	const viewKey = isExpanded ? "expanded" : "collapsed";
 	const motionProps = {
 		initial: prefersReducedMotion ? false : { opacity: 0, scale: 0.96 },
@@ -137,6 +187,9 @@ export const VisitorCounter = memo(function VisitorCounter() {
 					<m.div
 						key={`mobile-${viewKey}`}
 						{...motionProps}
+						onAnimationComplete={
+							isExpanded ? () => setEntered(true) : undefined
+						}
 						className="origin-top-right"
 					>
 						{isExpanded ? (
@@ -144,6 +197,8 @@ export const VisitorCounter = memo(function VisitorCounter() {
 								compact
 								fullTotal={fullTotal}
 								live={live}
+								justYou={justYou}
+								entered={entered}
 								onCollapse={collapse}
 							/>
 						) : (
@@ -202,6 +257,9 @@ export const VisitorCounter = memo(function VisitorCounter() {
 					<m.div
 						key={`desktop-${viewKey}`}
 						{...motionProps}
+						onAnimationComplete={
+							isExpanded ? () => setEntered(true) : undefined
+						}
 						className="origin-bottom-left"
 					>
 						{isExpanded ? (
@@ -209,6 +267,8 @@ export const VisitorCounter = memo(function VisitorCounter() {
 								compact={false}
 								fullTotal={fullTotal}
 								live={live}
+								justYou={justYou}
+								entered={entered}
 								onCollapse={collapse}
 							/>
 						) : (
