@@ -35,4 +35,11 @@ describe("/api/live", () => {
 		expect(typeof body.live).toBe("number");
 		expect(body.live as number).toBeGreaterThanOrEqual(0);
 	});
+
+	it("passes websocket upgrades through as 101", async () => {
+		const res = await call("/api/live?cid=testcid123&tab=testtab123", {
+			headers: { Upgrade: "websocket" },
+		});
+		expect(res.status).toBe(101);
+	});
 });

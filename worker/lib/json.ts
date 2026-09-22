@@ -18,6 +18,7 @@ export function methodNotAllowed(allowed: string[]): Response {
 }
 
 export function withPoweredBy(response: Response): Response {
+	if (response.status === 101) return response;
 	const headers = new Headers(response.headers);
 	if (!headers.has("X-Powered-By")) headers.set("X-Powered-By", "Neosphere");
 	return new Response(response.body, {
