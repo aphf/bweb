@@ -11,7 +11,7 @@ graph TD
     User[Visitor] -->|HTTPS| CF[Cloudflare Workers + Assets]
     CF -->|Static Assets| Frontend[React Frontend]
     CF -->|API Requests| Functions[Worker Handlers]
-    
+
     subgraph "Backend (Serverless)"
         Functions -->|CRUD + Cache + Rate Limit| D1[(D1 Database)]
         Functions -->|Assets| R2[(R2 Storage)]
@@ -25,7 +25,7 @@ graph TD
         Functions -->|Expiry| RDAP["Domain RDAP"]
         Functions -->|Auth| JWT[JWT]
     end
-    
+
     subgraph "Frontend (Client)"
         Frontend -->|Commands| Terminal[Terminal Emulator]
         Frontend -->|Routing| UI[Graphical Pages]
@@ -74,13 +74,13 @@ sequenceDiagram
     participant Terminal
     participant AuthAPI as /api/auth/login
     participant ProtectedAPI as /api/contact/inbox
-    
+
     Admin->>Terminal: login [password]
     Terminal->>AuthAPI: POST {password}
     AuthAPI->>AuthAPI: Verify Password
     AuthAPI-->>Terminal: Return JWT Token
     Terminal->>Terminal: Store Token in localStorage
-    
+
     Admin->>Terminal: inbox
     Terminal->>ProtectedAPI: GET (Header: Authorization: Bearer [Token])
     ProtectedAPI->>ProtectedAPI: Verify JWT
@@ -95,10 +95,10 @@ The application uses Cloudflare D1 (SQLite) for persistence.
 
 1. **notes**: Visitor guestbook entries (mock file system).
    - `id`, `filename`, `content`, `ip`, `timestamp`
-   
+
 2. **messages**: Contact form submissions.
    - `id`, `name`, `email`, `message`, `ip`, `user_agent`, `timestamp`, `read`
-   
+
 3. **config**: Key-value store for site settings.
    - `key` (PK), `value`
 

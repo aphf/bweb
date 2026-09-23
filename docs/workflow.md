@@ -1,4 +1,4 @@
-# Neosphere Project Workflow 
+# Neosphere Project Workflow
 
 This document explains how the **Neosphere** project is built, deployed, and how its different parts (Cloudflare Workers, static assets, R2) fit together.
 
@@ -9,19 +9,19 @@ The project is a **full-stack Worker**: a React/Vite SPA served as static assets
 ```mermaid
 graph TD
     User[End User]
-    
+
     subgraph "Cloudflare"
         CF_Worker["Cloudflare Worker<br>(neosphere + static assets)"]
         CF_R2["R2 Storage<br>(neosphere-assets)"]
     end
-    
+
     External_API[OpenWeatherMap API]
 
     %% Interactions
     User -->|Visits bahauddin.org| CF_Worker
     User -->|Requests /media/avatars/me.jpg| CF_Worker
     User -->|Requests /api/weather| CF_Worker
-    
+
     CF_Worker -->|Fetches Image| CF_R2
     CF_Worker -->|Fetches Data| External_API
 ```
@@ -30,7 +30,7 @@ graph TD
 1.  **Static Assets (Frontend)**:
     -   Hosts the static files built by Vite (`index.html`, JS bundles, CSS) from `dist/`.
     -   Served by Cloudflare with edge caching; SPA fallback via `not_found_handling`.
-    
+
 2.  **Worker (Backend)**:
     -   Single entry `worker/index.ts` with explicit routing (`worker/routes/*`, shared code in `worker/lib/*`, no framework).
     -   **Usage**:
@@ -73,7 +73,7 @@ sequenceDiagram
 
     Dev->>GitHub: git push origin main
     GitHub->>Action: Trigger 'deploy.yml'
-    
+
     rect rgb(30, 30, 30)
         note right of Action: Build Process
         Action->>Action: Checkout Code
@@ -109,7 +109,7 @@ We needed a way to serve images without bloating the repo. Here is the flow:
 3.  **Proxying**:
     -   `worker/index.ts` routes `/media/*` to `handleMedia` (`worker/routes/pages-assets.ts`).
     -   The trailing path is the R2 key: `/media/gallery/photo1.jpg` serves key `gallery/photo1.jpg`, streamed back to the user.
-    
+
 **Why do this?**
 -   **Security**: You can add authentication later easily.
 -   **Performance**: Cloudflare caches the images at the edge.
