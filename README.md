@@ -17,7 +17,7 @@ Interactive web-desktop portfolio (React + Vite SPA) on Cloudflare Worker with D
 |---|---|
 | Frontend | React 19, Vite, Tailwind |
 | Backend | Native Cloudflare Worker, zero dependecies |
-| Persistance | D1 (`DB`), KV (`RATE_LIMITER`), R2 (`neosphere-assets`) |
+| Persistance | D1 (`DB`, incl. `kv_store` cache/rate-limits), KV (`RATE_LIMITER`, health probe only), R2 (`neosphere-assets`) |
 | Email | Resend + React Email (`emails/`) |
 | Deploy | GitHub Actions → `wrangler deploy` |
 

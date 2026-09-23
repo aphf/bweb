@@ -13,9 +13,8 @@ graph TD
     CF -->|API Requests| Functions[Worker Handlers]
     
     subgraph "Backend (Serverless)"
-        Functions -->|CRUD| D1[(D1 Database)]
+        Functions -->|CRUD + Cache + Rate Limit| D1[(D1 Database)]
         Functions -->|Assets| R2[(R2 Storage)]
-        Functions -->|Cache + Rate Limit| KV[(KV)]
         Functions -->|Notify| Telegram[Telegram]
         Functions -->|Email| Resend[Resend Email]
         Functions -->|Weather| OpenWeather[OpenWeather]
@@ -42,13 +41,12 @@ sequenceDiagram
     participant User
     participant Frontend
     participant API as /api/contact
-    participant KV as KV (Rate Limit)
-    participant D1 as Database
+    participant D1 as Database (incl. kv_store)
     participant Ext as External Services
 
     User->>Frontend: Enters message
     Frontend->>API: POST /api/contact {name, email, message}
-    API->>KV: Check Rate Limit (3/hour per IP)
+    API->>D1: Check Rate Limit in kv_store (3/hour per IP)
     alt Limit Exceeded
         API-->>Frontend: 429 Too Many Requests
     end
@@ -110,12 +108,18 @@ The application uses Cloudflare D1 (SQLite) for persistence.
 5. **ai_queries**: AI chat log + per-IP quota (5 for guests, unlimited for admins).
    - `id` (PK), `ip`, `prompt`, `response`, `model`, `cost`, `prompt_tokens`, `completion_tokens`, `is_admin`, `created_at`
 
-### KV Usage (`RATE_LIMITER`)
+6. **kv_store**: D1-backed drop-in for the former KV namespace (see below).
+   - `key` (PK), `value`, `expires_at` (0 = never expires; self-created on first use)
+
+### Hot Cache + Rate Limits (`kv_store` in D1, via `worker/lib/d1-kv.ts`)
+
+KV allows 1,000 writes/day on the Workers Free plan; the per-minute cron pattern (locks + caches + deletes across three jobs) burns ~7–10k/day. D1 allows 100,000 rows written + 5M read/day, so the exact same access pattern fits with ~10x headroom. Same keys, same TTLs, same lock/dedup behavior — only the backend moved. TTL is emulated with `expires_at` (D1 has no native key expiry). The `RATE_LIMITER` KV binding is still declared but only feeds the `/api/health` probe.
 
 - **Rate limits**: sliding-window counters (`login:<ip>`, `contact:<ip>`, `create_note:<ip>`, …). Approximate under concurrency (no atomic incr) — acceptable for abuse throttles.
-- **Music cache**: `cache:spotify:currently_playing` (60s TTL, 15s fresh window) + `cache:spotify:last_played` (7d TTL) for history fallback.
+- **Music cache**: `cache:spotify:currently_playing` (60s TTL playing / 120s TTL idle; 15s fresh window when playing, 60s when idle) + `cache:spotify:last_played` (30d TTL) for history fallback. Upstream failures write a short cooldown marker (`cache:spotify:upstream_cooldown`, honors `Retry-After` up to 300s) so a sick proxy causes a trickle, not a retry storm.
 - **Visitors cache**: `cache:visitors:v1` (120s TTL, 30s fresh window) + revalidation lock (60s TTL).
-- **Alert state**: Spotify re-auth and domain-expiry milestone machines (`pending/sent/failed` per cycle) + the music revalidation lock (60s TTL).
+- **Status cache**: `cache:status:v1` (120s TTL, 30s fresh window) + revalidation lock (60s TTL).
+- **Alert state**: Spotify re-auth and domain-expiry milestone machines (`pending/sent/failed` per cycle) + revalidation locks (60s TTL).
 
 ### Object Storage (R2)
 
@@ -141,7 +145,7 @@ The application uses Cloudflare D1 (SQLite) for persistence.
 ## Performance & Security
 
 ### Rate Limiting
-To prevent abuse, sensitive endpoints (`/api/contact`, `/api/auth/login`) are protected by a custom rate limiter using **Cloudflare KV**.
+To prevent abuse, sensitive endpoints (`/api/contact`, `/api/auth/login`) are protected by a custom rate limiter backed by the D1 `kv_store` table.
 - **Strategy**: Variable window counters (Sliding Window approximation).
 - **Limits**:
   - Login: 5 attempts / 60s per IP.
@@ -159,20 +163,20 @@ One Worker, two cron schedules (dispatched on `controller.cron` in `worker/index
 
 | Schedule | Job |
 | :--- | :--- |
-| `* * * * *` | Refreshes the KV playback + visitors caches and runs Spotify re-auth milestone checks (30/20/10/5/1 days, KV-deduped per cycle). |
-| `30 6 * * *` | RDAP expiry check for `MONITORED_DOMAINS` with milestone emails (30/20/10/5/2/1 days, KV-deduped per domain + expiry cycle). |
+| `* * * * *` | Refreshes the D1 playback + visitors + status caches and runs Spotify re-auth milestone checks (30/20/10/5/1 days, lock-deduped per cycle). |
+| `30 6 * * *` | RDAP expiry check for `MONITORED_DOMAINS` with milestone emails (30/20/10/5/2/1 days, D1-deduped per domain + expiry cycle). |
 
 ### Music Playback Pipeline (`worker/routes/music.ts`)
 
 Pull-based with stale-while-revalidate:
 
-1. **HIT** (cache < 15s, playing) → served instantly, no upstream call.
-2. **STALE** (expired, playing) → served instantly + one background revalidation (KV lock dedups concurrent stampedes).
-3. **MISS** → inline upstream fetch; playing responses populate cache + last-played history.
-4. **Idle** → last-played history if present, else bare `{is_playing: false}`.
+1. **HIT** (playing < 15s, or idle < 60s) → served instantly, no upstream call. Idle HITs serve last-played history when present.
+2. **STALE** (expired) → served instantly + one background revalidation (lock key dedups concurrent stampedes).
+3. **MISS** → inline upstream fetch (skipped while the failure cooldown is active), response served immediately; cache + last-played history persist in the background (`waitUntil`).
+4. **Idle** → authoritative `is_playing:false` snapshots are cached like playing ones, so idle polling costs ~1 upstream req/min flat; failures back off 60s+ instead of retrying per poll. Last-played history if present, else bare `{is_playing: false}`.
 
 Upstream load stays at ~1–4 req/min regardless of visitor count. Frontend polls every 30s (visible tabs only) and projects progress client-side, so typical display lag is 15–45s. Alert emails (Spotify + domains) are Resend-idempotent per milestone + cycle, so retries never double-send.
 
 ### Visitors Pipeline (`worker/routes/visitors.ts`)
 
-Same SWR shape: HIT (<30s) → instant; STALE → instant + one locked background refresh; MISS → inline Umami `stats` + `active` fetch. Cron-warmed, so upstream stays at ~1 fetch/min. Frontend (`useVisitors` + `VisitorCounter`) polls every 30s (visible tabs only); the pill shows total always, live count only when >0.
+Same SWR shape: HIT (<30s) → instant; STALE → instant + one locked background refresh; MISS → inline Umami `stats` + `active` fetch, response served immediately while the cache persists in the background (`waitUntil`). Cron-warmed, so upstream stays at ~1 fetch/min. Frontend (`useVisitors` + `VisitorCounter`) polls every 30s (visible tabs only); the pill shows total always, live count only when >0.

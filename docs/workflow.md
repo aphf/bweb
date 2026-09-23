@@ -55,7 +55,7 @@ graph TD
 
     | Schedule | Job |
     | :--- | :--- |
-    | `* * * * *` | In-process Spotify revalidation: refreshes KV playback cache + runs Spotify re-auth checks |
+    | `* * * * *` | In-process Spotify revalidation: refreshes D1 playback cache + runs Spotify re-auth checks |
     | `30 6 * * *` | RDAP domain-expiry check for `MONITORED_DOMAINS` + emails |
 
 ---
