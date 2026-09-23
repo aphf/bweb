@@ -95,13 +95,7 @@ function ExpandedCard({
 							<LiveDot />
 						</span>
 						<span className="whitespace-nowrap text-xs font-semibold text-elegant-text-primary">
-							{live}
-							{justYou && (
-								<>
-									{" · "}
-									<JustYou start={entered} />
-								</>
-							)}
+							{justYou ? <JustYou start={entered} /> : live}
 						</span>
 					</div>
 				)}
