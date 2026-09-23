@@ -5,7 +5,7 @@ import {
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import worker from "../index";
-import { kvPut } from "../lib/d1-kv";
+import { kvDelete, kvPut } from "../lib/d1-kv";
 
 const CACHE_KEY = "cache:spotify:currently_playing";
 
@@ -48,6 +48,31 @@ describe("/api/music cache tiers", () => {
 		expect(res.headers.get("X-Cache-Status")).toBe("STALE");
 		const body = (await res.json()) as { title?: string };
 		expect(body.title).toBe("Stale Track");
+	});
+
+	it("serves a fresh idle snapshot as HIT without upstream", async () => {
+		await seedCache({ is_playing: false, timestamp: Date.now() }, Date.now());
+		const res = await getMusic();
+		expect(res.status).toBe(200);
+		expect(res.headers.get("X-Cache-Status")).toBe("HIT");
+		expect(["history", "idle"]).toContain(res.headers.get("X-Playback-Status"));
+		const body = (await res.json()) as { is_playing?: boolean };
+		expect(body.is_playing).toBe(false);
+	});
+
+	it("short-circuits upstream while cooling down", async () => {
+		await kvDelete(env.DB, CACHE_KEY);
+		await kvPut(
+			env.DB,
+			"cache:spotify:upstream_cooldown",
+			JSON.stringify({ not_before: Date.now() + 120_000 }),
+		);
+		const res = await getMusic();
+		expect(res.status).toBe(200);
+		expect(res.headers.get("X-Cache-Status")).toBe("MISS");
+		const body = (await res.json()) as { is_playing?: boolean };
+		expect(body.is_playing).toBe(false);
+		await kvDelete(env.DB, "cache:spotify:upstream_cooldown");
 	});
 
 	it("rejects non-GET methods", async () => {

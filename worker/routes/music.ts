@@ -12,9 +12,15 @@ import {
 
 const CACHE_KEY = "cache:spotify:currently_playing";
 const CACHE_TTL_MS = 15 * 1000;
+const IDLE_FRESH_MS = 60_000;
+const IDLE_CACHE_TTL_SECONDS = 120;
 const UPSTREAM_TIMEOUT_MS = 6_000;
 const LAST_PLAYED_KEY = "cache:spotify:last_played";
-const LAST_PLAYED_TTL_SECONDS = 60 * 60 * 24 * 7;
+const LAST_PLAYED_TTL_SECONDS = 60 * 60 * 24 * 30;
+const UPSTREAM_COOLDOWN_KEY = "cache:spotify:upstream_cooldown";
+const UPSTREAM_COOLDOWN_TTL_SECONDS = 300;
+const DEFAULT_SICK_COOLDOWN_MS = 60_000;
+const MAX_RETRY_AFTER_MS = 300_000;
 // Singleflight-ish guard: concurrent stale hits share one revalidation.
 // No atomic CAS here, so a check-then-act race can still double-fetch;
 // N-to-~2 worst case beats N upstream fetches.
@@ -119,10 +125,10 @@ async function readPlaybackCache(
 			return null;
 		}
 		const entry = toPublicPlaybackResponse(cached.data);
-		if (!entry.is_playing) return null;
+		const windowMs = entry.is_playing ? CACHE_TTL_MS : IDLE_FRESH_MS;
 		return {
 			entry,
-			fresh: Date.now() - cached.cached_at < CACHE_TTL_MS,
+			fresh: Date.now() - cached.cached_at < windowMs,
 		};
 	} catch (error) {
 		console.warn({
@@ -131,6 +137,63 @@ async function readPlaybackCache(
 			error: error instanceof Error ? error.message : String(error),
 		});
 		return null;
+	}
+}
+
+async function storeIdle(
+	env: SpotifyEnv,
+	opts?: { cooldownMs?: number },
+): Promise<void> {
+	if (!env.DB) return;
+	const now = Date.now();
+	const data = { is_playing: false, timestamp: now };
+	try {
+		await kvPut(env.DB, CACHE_KEY, JSON.stringify({ data, cached_at: now }), {
+			expirationTtl: IDLE_CACHE_TTL_SECONDS,
+		});
+	} catch (error) {
+		console.error({
+			message: "spotify_idle_cache_write_failed",
+			event: "spotify_idle_cache_write_failed",
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+	const cooldownMs = opts?.cooldownMs ?? 0;
+	if (cooldownMs > 0) {
+		try {
+			await kvPut(
+				env.DB,
+				UPSTREAM_COOLDOWN_KEY,
+				JSON.stringify({ not_before: now + cooldownMs }),
+				{ expirationTtl: UPSTREAM_COOLDOWN_TTL_SECONDS },
+			);
+		} catch (error) {
+			console.error({
+				message: "spotify_cooldown_write_failed",
+				event: "spotify_cooldown_write_failed",
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+}
+
+async function upstreamCoolingDown(env: SpotifyEnv): Promise<boolean> {
+	if (!env.DB) return false;
+	try {
+		const raw = await kvGet(env.DB, UPSTREAM_COOLDOWN_KEY);
+		if (!raw) return false;
+		const parsed: unknown = JSON.parse(raw);
+		if (
+			typeof parsed !== "object" ||
+			parsed === null ||
+			!("not_before" in parsed) ||
+			typeof parsed.not_before !== "number"
+		) {
+			return false;
+		}
+		return parsed.not_before > Date.now();
+	} catch {
+		return false;
 	}
 }
 
@@ -181,8 +244,20 @@ async function processNotice(env: SpotifyEnv, payload: unknown): Promise<void> {
 
 type UpstreamResult =
 	| { outcome: "ok"; payload: unknown }
-	| { outcome: "error-status"; status: number; payload: unknown | null }
+	| {
+			outcome: "error-status";
+			status: number;
+			payload: unknown | null;
+			retryAfterMs?: number;
+	  }
 	| { outcome: "exception"; error: string };
+
+function parseRetryAfterMs(value: string | null): number | undefined {
+	if (!value) return undefined;
+	const seconds = Number(value.trim());
+	if (!Number.isFinite(seconds) || seconds < 0) return undefined;
+	return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+}
 
 async function fetchUpstream(env: SpotifyEnv): Promise<UpstreamResult | null> {
 	const requestConfig = getSpotifyRequest(env);
@@ -212,7 +287,12 @@ async function fetchUpstream(env: SpotifyEnv): Promise<UpstreamResult | null> {
 			event: "spotify_upstream_non_success",
 			status: response.status,
 		});
-		return { outcome: "error-status", status: response.status, payload };
+		return {
+			outcome: "error-status",
+			status: response.status,
+			payload,
+			retryAfterMs: parseRetryAfterMs(response.headers.get("retry-after")),
+		};
 	} catch (error) {
 		console.error({
 			message: "spotify_upstream_fetch_failed",
@@ -252,13 +332,24 @@ export async function revalidatePlayback(env: Env): Promise<void> {
 	}
 
 	try {
+		if (await upstreamCoolingDown(env).catch(() => false)) {
+			console.info({
+				message: "spotify_revalidation_cooling_down",
+				event: "spotify_revalidation_cooling_down",
+			});
+			return;
+		}
 		const result = await fetchUpstream(env);
 		if (!result) return;
 		if (result.outcome === "ok") {
 			await processNotice(env, result.payload);
 			try {
 				const publicData = toPublicPlaybackResponse(result.payload);
-				if (publicData.is_playing) await storePlayback(env, publicData);
+				if (publicData.is_playing) {
+					await storePlayback(env, publicData);
+				} else {
+					await storeIdle(env);
+				}
 			} catch (error) {
 				console.error({
 					message: "spotify_revalidation_failed",
@@ -266,12 +357,15 @@ export async function revalidatePlayback(env: Env): Promise<void> {
 					error: error instanceof Error ? error.message : String(error),
 				});
 			}
-		} else if (
-			result.outcome === "error-status" &&
-			result.status === 503 &&
-			result.payload
-		) {
-			await processNotice(env, result.payload);
+		} else if (result.outcome === "error-status") {
+			if (result.status === 503 && result.payload) {
+				await processNotice(env, result.payload);
+			}
+			await storeIdle(env, {
+				cooldownMs: result.retryAfterMs ?? DEFAULT_SICK_COOLDOWN_MS,
+			});
+		} else {
+			await storeIdle(env, { cooldownMs: DEFAULT_SICK_COOLDOWN_MS });
 		}
 	} catch (error) {
 		console.error({
@@ -298,12 +392,17 @@ export async function handleMusic(
 	}
 
 	const cached = await readPlaybackCache(env);
-	if (cached?.fresh) {
-		return jsonResponse(cached.entry, "HIT", "playing");
+	if (cached) {
+		const cacheStatus = cached.fresh ? "HIT" : "STALE";
+		if (!cached.fresh) ctx.waitUntil(revalidatePlayback(env));
+		if (cached.entry.is_playing) {
+			return jsonResponse(cached.entry, cacheStatus, "playing");
+		}
+		return idleResponseWithHistory(env, cacheStatus);
 	}
-	if (cached && !cached.fresh) {
-		ctx.waitUntil(revalidatePlayback(env));
-		return jsonResponse(cached.entry, "STALE", "playing");
+
+	if (await upstreamCoolingDown(env).catch(() => false)) {
+		return idleResponseWithHistory(env, "MISS", "cooldown");
 	}
 
 	const result = await fetchUpstream(env);
@@ -323,6 +422,7 @@ export async function handleMusic(
 			return jsonResponse(publicData, "MISS", "playing");
 		}
 
+		ctx.waitUntil(storeIdle(env));
 		return idleResponseWithHistory(env, "MISS", "idle");
 	}
 
@@ -330,8 +430,14 @@ export async function handleMusic(
 		if (result.status === 503 && result.payload) {
 			ctx.waitUntil(processNotice(env, result.payload));
 		}
+		ctx.waitUntil(
+			storeIdle(env, {
+				cooldownMs: result.retryAfterMs ?? DEFAULT_SICK_COOLDOWN_MS,
+			}),
+		);
 		return idleResponseWithHistory(env, "MISS", String(result.status));
 	}
 
+	ctx.waitUntil(storeIdle(env, { cooldownMs: DEFAULT_SICK_COOLDOWN_MS }));
 	return idleResponseWithHistory(env, "MISS", "exception");
 }
