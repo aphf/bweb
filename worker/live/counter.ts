@@ -3,7 +3,6 @@ import type { Env } from "../env";
 
 interface Attachment {
 	cid: string;
-	tabId: string;
 	lastSeen: number;
 }
 
@@ -33,14 +32,10 @@ export class LiveCounter extends DurableObject<Env> {
 			const raw = ws.deserializeAttachment() as unknown;
 			if (typeof raw !== "object" || raw === null) return null;
 			const rec = raw as Record<string, unknown>;
-			if (
-				typeof rec.cid !== "string" ||
-				typeof rec.tabId !== "string" ||
-				typeof rec.lastSeen !== "number"
-			) {
+			if (typeof rec.cid !== "string" || typeof rec.lastSeen !== "number") {
 				return null;
 			}
-			return { cid: rec.cid, tabId: rec.tabId, lastSeen: rec.lastSeen };
+			return { cid: rec.cid, lastSeen: rec.lastSeen };
 		} catch {
 			return null;
 		}
@@ -94,16 +89,12 @@ export class LiveCounter extends DurableObject<Env> {
 		if (!cid) {
 			cid = crypto.randomUUID().replace(/-/g, "").slice(0, 32);
 		}
-		const tabId =
-			sanitizeCid(url.searchParams.get("tab")) ?? crypto.randomUUID();
-
 		const pair = new WebSocketPair();
 		const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
 
 		this.ctx.acceptWebSocket(server);
 		server.serializeAttachment({
 			cid,
-			tabId,
 			lastSeen: Date.now(),
 		} satisfies Attachment);
 

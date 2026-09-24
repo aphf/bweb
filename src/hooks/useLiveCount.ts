@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 type LiveStatus = "loading" | "ready" | "error";
 
 const CID_KEY = "bweb:visitor-id";
-const TAB_KEY = "bweb:tab-id";
 
 const HEARTBEAT_MS = 25_000;
 const POLL_FALLBACK_MS = 30_000;
@@ -23,18 +22,6 @@ function getOrCreateCid(): string {
 		if (existing && /^[A-Za-z0-9_-]{8,64}$/.test(existing)) return existing;
 		const next = randomId().slice(0, 32);
 		window.localStorage.setItem(CID_KEY, next);
-		return next;
-	} catch {
-		return randomId().slice(0, 32);
-	}
-}
-
-function getTabId(): string {
-	try {
-		const existing = window.sessionStorage.getItem(TAB_KEY);
-		if (existing && /^[A-Za-z0-9_-]{8,64}$/.test(existing)) return existing;
-		const next = randomId().slice(0, 32);
-		window.sessionStorage.setItem(TAB_KEY, next);
 		return next;
 	} catch {
 		return randomId().slice(0, 32);
@@ -72,11 +59,13 @@ export function useLiveCount() {
 
 	useEffect(() => {
 		disposedRef.current = false;
-		// OTM: delete the old leader lock. Never read again.
+
 		try {
 			window.localStorage.removeItem("bweb:live-leader");
 		} catch {}
-		const tabId = getTabId();
+		try {
+			window.sessionStorage.removeItem("bweb:tab-id");
+		} catch {}
 		const cid = getOrCreateCid();
 
 		const stopHeartbeat = () => {
@@ -158,7 +147,7 @@ export function useLiveCount() {
 			try {
 				const scheme = window.location.protocol === "https:" ? "wss" : "ws";
 				ws = new WebSocket(
-					`${scheme}://${window.location.host}/api/live?cid=${encodeURIComponent(cid)}&tab=${encodeURIComponent(tabId)}`,
+					`${scheme}://${window.location.host}/api/live?cid=${encodeURIComponent(cid)}`,
 				);
 			} catch {
 				setStatus((s) => (s === "ready" ? s : "error"));
@@ -177,12 +166,12 @@ export function useLiveCount() {
 				stopPoll();
 				setConnected(true);
 				try {
-					ws.send(JSON.stringify({ type: "hello", cid, tabId }));
+					ws.send(JSON.stringify({ type: "hello", cid }));
 				} catch {}
 				stopHeartbeat();
 				heartbeatRef.current = window.setInterval(() => {
 					try {
-						ws.send(JSON.stringify({ type: "heartbeat", cid, tabId }));
+						ws.send(JSON.stringify({ type: "heartbeat", cid }));
 					} catch {}
 				}, HEARTBEAT_MS);
 			};
