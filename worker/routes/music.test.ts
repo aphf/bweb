@@ -6,6 +6,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import worker from "../index";
 import { kvDelete, kvPut } from "../lib/d1-kv";
+import { testEnv } from "../test-utils";
 
 const CACHE_KEY = "cache:spotify:currently_playing";
 
@@ -17,7 +18,7 @@ async function getMusic(): Promise<Response> {
 	const ctx = createExecutionContext();
 	const res = await worker.fetch(
 		new Request("https://test/api/music"),
-		env,
+		testEnv(),
 		ctx,
 	);
 	await waitOnExecutionContext(ctx);

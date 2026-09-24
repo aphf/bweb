@@ -6,12 +6,13 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import worker from "../index";
 import { kvDelete, kvPut } from "../lib/d1-kv";
+import { testEnv } from "../test-utils";
 
 async function call(path: string, init?: RequestInit): Promise<Response> {
 	const ctx = createExecutionContext();
 	const res = await worker.fetch(
 		new Request(`https://test${path}`, init),
-		env,
+		testEnv(),
 		ctx,
 	);
 	await waitOnExecutionContext(ctx);
