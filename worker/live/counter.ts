@@ -131,14 +131,11 @@ export class LiveCounter extends DurableObject<Env> {
 	}
 
 	async webSocketClose(
-		ws: WebSocket,
-		code: number,
-		reason: string,
+		_ws: WebSocket,
+		_code: number,
+		_reason: string,
 		_wasClean: boolean,
 	): Promise<void> {
-		try {
-			ws.close(code, reason);
-		} catch {}
 		await this.ensureAlarm();
 		this.broadcast();
 	}

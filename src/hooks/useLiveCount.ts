@@ -4,12 +4,8 @@ type LiveStatus = "loading" | "ready" | "error";
 
 const CID_KEY = "bweb:visitor-id";
 const TAB_KEY = "bweb:tab-id";
-const LEADER_KEY = "bweb:live-leader";
-const BC_NAME = "bweb:live";
 
 const HEARTBEAT_MS = 25_000;
-const LEADER_HEARTBEAT_MS = 5_000;
-const LEADER_STALE_MS = 10_000;
 const POLL_FALLBACK_MS = 30_000;
 const BACKOFFS = [1000, 2000, 5000, 10_000, 30_000];
 
@@ -45,39 +41,21 @@ function getTabId(): string {
 	}
 }
 
-interface LeaderRecord {
-	tabId: string;
-	ts: number;
-}
-
-function readLeader(): LeaderRecord | null {
-	try {
-		const raw = window.localStorage.getItem(LEADER_KEY);
-		if (!raw) return null;
-		const parsed = JSON.parse(raw) as Partial<LeaderRecord>;
-		if (typeof parsed.tabId !== "string" || typeof parsed.ts !== "number") {
-			return null;
-		}
-		return { tabId: parsed.tabId, ts: parsed.ts };
-	} catch {
-		return null;
-	}
-}
-
-function toPresence(
-	value: unknown,
-): { live: number; connected: boolean } | null {
+function toLiveCount(value: unknown): number | null {
 	if (typeof value !== "object" || value === null) return null;
 	const rec = value as Record<string, unknown>;
 	const live = rec.live;
 	if (typeof live !== "number" || !Number.isFinite(live) || live < 0) {
 		return null;
 	}
-	const connected = rec.connected;
-	return {
-		live: Math.floor(live),
-		connected: connected === true,
-	};
+	return Math.floor(live);
+}
+
+function socketAlive(ws: WebSocket | null): boolean {
+	return (
+		ws !== null &&
+		(ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
+	);
 }
 
 export function useLiveCount() {
@@ -85,13 +63,8 @@ export function useLiveCount() {
 	const [status, setStatus] = useState<LiveStatus>("loading");
 	const [connected, setConnected] = useState(false);
 
-	const tabIdRef = useRef<string>("");
-	const cidRef = useRef<string>("");
-	const isLeaderRef = useRef(false);
 	const wsRef = useRef<WebSocket | null>(null);
-	const bcRef = useRef<BroadcastChannel | null>(null);
 	const heartbeatRef = useRef<number | null>(null);
-	const leaderBeatRef = useRef<number | null>(null);
 	const pollRef = useRef<number | null>(null);
 	const backoffRef = useRef(0);
 	const reconnectRef = useRef<number | null>(null);
@@ -99,50 +72,17 @@ export function useLiveCount() {
 
 	useEffect(() => {
 		disposedRef.current = false;
+		// OTM: delete the old leader lock. Never read again.
+		try {
+			window.localStorage.removeItem("bweb:live-leader");
+		} catch {}
 		const tabId = getTabId();
 		const cid = getOrCreateCid();
-		tabIdRef.current = tabId;
-		cidRef.current = cid;
-
-		const hasBC = typeof BroadcastChannel !== "undefined";
-		let bc: BroadcastChannel | null = null;
-		if (hasBC) {
-			try {
-				bc = new BroadcastChannel(BC_NAME);
-				bcRef.current = bc;
-				bc.onmessage = (event: MessageEvent) => {
-					const next = toPresence(event.data);
-					if (next !== null) {
-						setLive(next.live);
-						setConnected(next.connected);
-						setStatus("ready");
-					}
-				};
-			} catch {
-				bcRef.current = null;
-			}
-		}
-
-		const broadcastCount = (value: number, viaSocket: boolean) => {
-			setLive(value);
-			setConnected(viaSocket);
-			setStatus("ready");
-			try {
-				bcRef.current?.postMessage({ live: value, connected: viaSocket });
-			} catch {}
-		};
 
 		const stopHeartbeat = () => {
 			if (heartbeatRef.current !== null) {
 				window.clearInterval(heartbeatRef.current);
 				heartbeatRef.current = null;
-			}
-		};
-
-		const stopPoll = () => {
-			if (pollRef.current !== null) {
-				window.clearInterval(pollRef.current);
-				pollRef.current = null;
 			}
 		};
 
@@ -153,10 +93,15 @@ export function useLiveCount() {
 			}
 		};
 
+		const stopPoll = () => {
+			if (pollRef.current !== null) {
+				window.clearInterval(pollRef.current);
+				pollRef.current = null;
+			}
+		};
+
 		const closeSocket = () => {
 			stopHeartbeat();
-			stopReconnect();
-			setConnected(false);
 			const ws = wsRef.current;
 			wsRef.current = null;
 			if (ws) {
@@ -165,56 +110,49 @@ export function useLiveCount() {
 					ws.onmessage = null;
 					ws.onerror = null;
 					ws.onclose = null;
-					ws.close(1000, "leader-stepdown");
+					ws.close(1000, "cleanup");
 				} catch {}
 			}
 		};
 
 		const pollCount = async () => {
+			if (disposedRef.current || document.visibilityState !== "visible") return;
+			if (socketAlive(wsRef.current)) return;
 			try {
 				const res = await fetch("/api/live/count", {
 					headers: { Accept: "application/json" },
 					cache: "no-store",
 				});
 				if (!res.ok) return;
-				const payload: unknown = await res.json();
-				const next = toPresence(payload);
-				if (next === null) return;
-				setLive(next.live);
+				const count = toLiveCount(await res.json());
+				if (count === null || disposedRef.current) return;
+				if (socketAlive(wsRef.current)) return;
+				setLive(count);
 				setStatus("ready");
-				if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-					setConnected(false);
-					try {
-						bcRef.current?.postMessage({ live: next.live, connected: false });
-					} catch {}
-				}
 			} catch {}
 		};
 
-		const startPollFallback = () => {
+		const startPoll = () => {
 			if (pollRef.current !== null) return;
-			void pollCount();
 			pollRef.current = window.setInterval(() => {
 				void pollCount();
 			}, POLL_FALLBACK_MS);
 		};
 
 		const scheduleReconnect = () => {
-			if (disposedRef.current || !isLeaderRef.current) return;
-			if (reconnectRef.current !== null) return;
+			if (disposedRef.current || reconnectRef.current !== null) return;
 			const delay = BACKOFFS[Math.min(backoffRef.current, BACKOFFS.length - 1)];
 			backoffRef.current += 1;
 			reconnectRef.current = window.setTimeout(() => {
 				reconnectRef.current = null;
-				if (disposedRef.current || !isLeaderRef.current) return;
-				connect();
+				if (!disposedRef.current) connect();
 			}, delay);
 		};
 
 		const connect = () => {
-			if (disposedRef.current || !isLeaderRef.current) return;
+			if (disposedRef.current) return;
 			closeSocket();
-			stopPoll();
+			stopReconnect();
 
 			let ws: WebSocket;
 			try {
@@ -223,15 +161,20 @@ export function useLiveCount() {
 					`${scheme}://${window.location.host}/api/live?cid=${encodeURIComponent(cid)}&tab=${encodeURIComponent(tabId)}`,
 				);
 			} catch {
-				setStatus("error");
-				startPollFallback();
+				setStatus((s) => (s === "ready" ? s : "error"));
+				setConnected(false);
+				void pollCount();
+				startPoll();
+				scheduleReconnect();
 				return;
 			}
 			wsRef.current = ws;
 
 			ws.onopen = () => {
-				if (wsRef.current !== ws) return;
+				if (wsRef.current !== ws || disposedRef.current) return;
 				backoffRef.current = 0;
+				stopReconnect();
+				stopPoll();
 				setConnected(true);
 				try {
 					ws.send(JSON.stringify({ type: "hello", cid, tabId }));
@@ -245,6 +188,7 @@ export function useLiveCount() {
 			};
 
 			ws.onmessage = (event: MessageEvent) => {
+				if (wsRef.current !== ws || disposedRef.current) return;
 				let parsed: unknown = null;
 				try {
 					parsed =
@@ -254,12 +198,15 @@ export function useLiveCount() {
 				} catch {
 					return;
 				}
-				const next = toPresence(parsed);
-				if (next !== null) broadcastCount(next.live, true);
+				const count = toLiveCount(parsed);
+				if (count === null) return;
+				setLive(count);
+				setStatus("ready");
+				setConnected(true);
 			};
 
 			ws.onerror = () => {
-				if (!isLeaderRef.current) return;
+				if (wsRef.current !== ws || disposedRef.current) return;
 				setStatus((s) => (s === "ready" ? s : "error"));
 			};
 
@@ -267,126 +214,41 @@ export function useLiveCount() {
 				if (wsRef.current === ws) wsRef.current = null;
 				stopHeartbeat();
 				setConnected(false);
-				if (disposedRef.current || !isLeaderRef.current) return;
+				if (disposedRef.current) return;
+				void pollCount();
+				startPoll();
 				scheduleReconnect();
-				startPollFallback();
 			};
 		};
 
-		const claim = () => {
-			try {
-				window.localStorage.setItem(
-					LEADER_KEY,
-					JSON.stringify({ tabId, ts: Date.now() } satisfies LeaderRecord),
-				);
-			} catch {
-				isLeaderRef.current = true;
-				connect();
-				return;
-			}
-			if (!isLeaderRef.current) {
-				isLeaderRef.current = true;
+		connect();
+
+		const onVisible = () => {
+			if (disposedRef.current || document.visibilityState !== "visible") return;
+			if (!socketAlive(wsRef.current)) {
+				backoffRef.current = 0;
 				connect();
 			}
 		};
-
-		const evaluate = () => {
+		const onOnline = () => {
 			if (disposedRef.current) return;
-			if (!hasBC) {
-				if (!isLeaderRef.current) {
-					isLeaderRef.current = true;
-					connect();
-				}
-				return;
-			}
-			const leader = readLeader();
-			const now = Date.now();
-			if (
-				!leader ||
-				now - leader.ts > LEADER_STALE_MS ||
-				leader.tabId === tabId
-			) {
-				if (
-					!leader ||
-					leader.tabId !== tabId ||
-					now - leader.ts > LEADER_STALE_MS
-				) {
-					if (leader?.tabId === tabId) {
-						try {
-							window.localStorage.setItem(
-								LEADER_KEY,
-								JSON.stringify({ tabId, ts: now } satisfies LeaderRecord),
-							);
-						} catch {}
-						return;
-					}
-					claim();
-					return;
-				}
-			}
-			if (isLeaderRef.current && leader.tabId !== tabId) {
-				isLeaderRef.current = false;
-				closeSocket();
-				stopPoll();
+			if (!socketAlive(wsRef.current)) {
+				backoffRef.current = 0;
+				connect();
 			}
 		};
 
-		const beatLeader = () => {
-			if (!isLeaderRef.current || disposedRef.current) return;
-			try {
-				window.localStorage.setItem(
-					LEADER_KEY,
-					JSON.stringify({ tabId, ts: Date.now() } satisfies LeaderRecord),
-				);
-			} catch {}
-		};
-
-		const onStorage = (event: StorageEvent) => {
-			if (event.key === LEADER_KEY) evaluate();
-		};
-
-		const release = () => {
-			try {
-				const leader = readLeader();
-				if (leader?.tabId === tabId) {
-					window.localStorage.removeItem(LEADER_KEY);
-				}
-			} catch {}
-		};
-
-		evaluate();
-		const evalTimer = window.setInterval(evaluate, 2000);
-		leaderBeatRef.current = window.setInterval(beatLeader, LEADER_HEARTBEAT_MS);
-		window.addEventListener("storage", onStorage);
-		const onPageHide = () => {
-			if (isLeaderRef.current) {
-				closeSocket();
-				release();
-				isLeaderRef.current = false;
-			}
-		};
-		const onPageShow = () => evaluate();
-		window.addEventListener("pagehide", onPageHide);
-		window.addEventListener("pageshow", onPageShow);
+		document.addEventListener("visibilitychange", onVisible);
+		window.addEventListener("online", onOnline);
 
 		return () => {
 			disposedRef.current = true;
-			window.clearInterval(evalTimer);
-			if (leaderBeatRef.current !== null) {
-				window.clearInterval(leaderBeatRef.current);
-				leaderBeatRef.current = null;
-			}
-			window.removeEventListener("storage", onStorage);
-			window.removeEventListener("pagehide", onPageHide);
-			window.removeEventListener("pageshow", onPageShow);
-			if (isLeaderRef.current) release();
-			isLeaderRef.current = false;
-			closeSocket();
+			document.removeEventListener("visibilitychange", onVisible);
+			window.removeEventListener("online", onOnline);
+			stopReconnect();
 			stopPoll();
-			try {
-				bc?.close();
-			} catch {}
-			bcRef.current = null;
+			closeSocket();
+			setConnected(false);
 		};
 	}, []);
 
