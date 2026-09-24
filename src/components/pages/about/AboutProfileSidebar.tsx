@@ -3,6 +3,12 @@ import { useState } from "react";
 import { FaLinkedin } from "react-icons/fa";
 import { SiGithub, SiTelegram, SiX } from "react-icons/si";
 import { useNavigate } from "react-router";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/animate-ui/components/radix/popover";
+import { useCanHover } from "../../../hooks/useCanHover";
 import { useServerStatus } from "../../../hooks/useServerStatus";
 import { trackEvent } from "../../../lib/analytics";
 
@@ -22,7 +28,8 @@ export function AboutProfileSidebar({
 }: AboutProfileSidebarProps) {
 	const navigate = useNavigate();
 	const [hasImageError, setHasImageError] = useState(false);
-	const [showStatusTooltip, setShowStatusTooltip] = useState(false);
+	const [statusOpen, setStatusOpen] = useState(false);
+	const canHover = useCanHover();
 	const { isOnline, lastPing, formattedTime, relativeTime, isLoading } =
 		useServerStatus();
 
@@ -231,17 +238,18 @@ export function AboutProfileSidebar({
 									</span>
 								</div>
 							) : (
-								<div className="h-6 group relative inline-flex items-center">
-									<button
-										type="button"
-										onClick={() => setShowStatusTooltip((prev) => !prev)}
-										onMouseEnter={() => setShowStatusTooltip(true)}
-										onMouseLeave={() => setShowStatusTooltip(false)}
-										onFocus={() => setShowStatusTooltip(true)}
-										onBlur={() => setShowStatusTooltip(false)}
-										aria-label="Toggle status tooltip"
-										aria-expanded={showStatusTooltip}
-										className="cursor-help h-6 inline-flex items-center gap-1.5 px-1.5 -mr-1.5 rounded hover:bg-elegant-bg/80 transition-colors select-none outline-none focus-visible:ring-1 focus-visible:ring-elegant-accent"
+								<Popover open={statusOpen} onOpenChange={setStatusOpen}>
+									<PopoverTrigger
+										{...(canHover
+											? {
+													onMouseEnter: () => setStatusOpen(true),
+													onMouseLeave: () => setStatusOpen(false),
+													onFocus: () => setStatusOpen(true),
+													onBlur: () => setStatusOpen(false),
+												}
+											: {})}
+										aria-label="Status details"
+										className="cursor-help h-6 inline-flex items-center gap-1.5 px-1.5 -mr-1.5 rounded hover:bg-elegant-bg/80 transition-colors select-none outline-none focus-visible:ring-1 focus-visible:ring-elegant-accent touch-manipulation"
 									>
 										<span className="relative flex w-1.5 h-1.5">
 											<span
@@ -252,16 +260,15 @@ export function AboutProfileSidebar({
 										<span className="text-xs font-medium border-b border-dotted pb-0.5 text-amber-400 border-amber-400/60 hover:border-amber-400 leading-none">
 											AFK
 										</span>
-									</button>
+									</PopoverTrigger>
 
-									{/* Tooltip on Hover / Focus / Mobile Touch (only for AFK) */}
-									<div
-										role="tooltip"
-										className={`pointer-events-none absolute bottom-full right-0 mb-2 w-max max-w-xs rounded-md bg-elegant-card/95 border border-elegant-border px-2.5 py-1 text-[11px] font-mono shadow-2xl backdrop-blur-md transition-opacity duration-150 z-50 select-none text-left ${
-											showStatusTooltip
-												? "opacity-100"
-												: "opacity-0 group-hover:opacity-100"
-										}`}
+									<PopoverContent
+										side="top"
+										align="end"
+										sideOffset={8}
+										onOpenAutoFocus={(e) => e.preventDefault()}
+										onCloseAutoFocus={(e) => e.preventDefault()}
+										className="w-max max-w-xs rounded-md bg-elegant-card/95 border border-elegant-border px-2.5 py-1 text-[11px] font-mono shadow-2xl backdrop-blur-md text-left"
 									>
 										<span className="text-elegant-text-muted">
 											{lastPing ? (
@@ -276,8 +283,8 @@ export function AboutProfileSidebar({
 												"Polling live status (1m)"
 											)}
 										</span>
-									</div>
-								</div>
+									</PopoverContent>
+								</Popover>
 							)}
 						</div>
 						<div className="flex justify-between py-2 border-t border-elegant-border items-center min-h-9">

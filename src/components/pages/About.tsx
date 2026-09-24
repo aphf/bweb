@@ -22,6 +22,7 @@ import {
 import { Clock5 } from "@/components/animate-ui/icons/clock-5";
 import { Pickaxe } from "@/components/animate-ui/icons/pickaxe";
 import { Route } from "@/components/animate-ui/icons/route";
+import { useCanHover } from "../../hooks/useCanHover";
 import { useSEO } from "../../hooks/useSEO";
 import { trackEvent } from "../../lib/analytics";
 import { Dock } from "../Dock";
@@ -605,28 +606,7 @@ const CurrentlyBlock = ({
 
 const TabBarLastUpdated = () => {
 	const [open, setOpen] = useState(false);
-	const [canHover, setCanHover] = useState(() => {
-		if (typeof window === "undefined") return true;
-		return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-	});
-	useEffect(() => {
-		if (typeof window === "undefined") return;
-		const mql = window.matchMedia("(hover: hover) and (pointer: fine)");
-		const update = () => setCanHover(mql.matches);
-		update();
-		if (typeof mql.addEventListener === "function") {
-			mql.addEventListener("change", update);
-			return () => mql.removeEventListener("change", update);
-		}
-		// Safari < 14 fallback
-		(mql as unknown as { addListener: (cb: () => void) => void }).addListener(
-			update,
-		);
-		return () =>
-			(
-				mql as unknown as { removeListener: (cb: () => void) => void }
-			).removeListener(update);
-	}, []);
+	const canHover = useCanHover();
 	const lastUpdatedDate = useMemo(() => {
 		const d = new Date(ABOUT_LAST_UPDATED_ISO);
 		return Number.isNaN(d.getTime()) ? null : d;
