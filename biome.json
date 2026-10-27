@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
@@ -17,9 +17,28 @@
 			"!skills-lock.json",
 			"!worker-configuration.d.ts",
 			"!src/components/animate-ui",
-			"!src/components/ui"
+			"!src/components/ui",
+			"!pnpm-lock.yaml"
 		]
 	},
+	"overrides": [
+		{
+			"includes": ["**/*.md"],
+			"formatter": {
+				"enabled": false
+			}
+		},
+		{
+			"includes": ["src/lib/get-strict-context.tsx"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noComponentHookFactories": "off"
+					}
+				}
+			}
+		}
+	],
 	"formatter": {
 		"enabled": true,
 		"indentStyle": "tab"
